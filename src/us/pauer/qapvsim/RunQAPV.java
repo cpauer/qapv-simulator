@@ -18,7 +18,7 @@ public class RunQAPV {
 	}
 	private static String[] getDefaultRequesterSetup() {
 		String[] args = new String[7];
-		args[0] = "Provider";
+		args[0] = "Requester";
 		args[1] = "QCR";
 		args[2] = "192.168.0.4";
 		args[3] = "40404";

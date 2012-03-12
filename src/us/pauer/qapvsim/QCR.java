@@ -42,12 +42,12 @@ public class QCR {
 		private void followThroughOnAction() {
 			switch (stateCounter) {
 			case STATE_CREATING: 
-				for (int i=0; i<1000000; i++);
+				for (int i=0; i<100000000; i++);
 				stateCounter = (stateCounter+1) % STATE_TOTAL;
 				updateUI();
 				break;
 			case STATE_SUBSCRIBING:
-				for (int i=0; i<1000000; i++);
+				for (int i=0; i<100000000; i++);
 				stateCounter = (stateCounter+1) % STATE_TOTAL;
 				updateUI();
 				break;

@@ -54,6 +54,7 @@ public class UPSSCP {
 	Executor executor;
 	NetworkApplicationEntity scp;
 	NetworkConnection scpConn;
+	//test comment for git tutorial
 	
 	static final String DEFAULT_PERSIST_LOCATION = "C:/QAPVSIM/SCP/";
 	
