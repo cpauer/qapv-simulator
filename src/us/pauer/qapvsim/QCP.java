@@ -26,6 +26,10 @@ package us.pauer.qapvsim;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import javax.swing.JButton;
 
@@ -49,46 +53,134 @@ public class QCP {
 	 *  
 	 */
 
-	private static final int STATE_WAIT = 0;
-	private static final int STATE_PROCESSING_CREATE = 1;
-	private static final int STATE_PROCESSING_SUBSCRIBE = 2;
-	private static final int STATE_PROCESSING_NGET = 3;
-	private static final int STATE_PROCESSING_UNSUBSCRIBE = 4;
-	private static final int STATE_PROCESSING_CMOVE = 5;
-	private static final int STATE_TOTAL = 6;
+	public class baseClass
+	{
+		public void doAction(){
+			System.out.println("Implement me!");
+		}
+	}
+	
+	public class createUPS extends baseClass
+	{
+		public void doAction()
+		{ 
+				System.out.println("createUPS");
+		}
+	}
+	
+	public class subscribe extends baseClass
+	{
+		public void doAction()
+		{ 
+				System.out.println("subscribe");
+		}
+	}
+	
+	public class nget extends baseClass
+	{
+		public void doAction()
+		{ 
+				System.out.println("nget");
+		}
+	}
+	
+	public class unsubscribe extends baseClass
+	{
+		public void doAction()
+		{ 
+				System.out.println("unsubscribe");
+		}
+	}
+	
+	public class cmove extends baseClass
+	{
+		public void doAction()
+		{ 
+				System.out.println("cmove");
+		}
+	}
+	
+	public class other extends baseClass
+	{
+		public void doAction()
+		{ 
+				System.out.println("other");
+		}
+	}
 	
 	
-
-	int currentState = 0;
+	enum states { WAIT_USER, WAIT_SUBSCRIBE, WAIT_OTHER};
 	
-
+	class events {
+		public actions action;
+		public String stringAction;
+	};
 	
-	ActionListener _qcpButtonListener = new ActionListener() {
+	class connectionInfo{
+		public String aetitle;
+		public String ip;
+		public String port;
+	}
+	
+	private connectionInfo local = new connectionInfo();
+	private connectionInfo remote = new connectionInfo();
+	
+	private Map<String,baseClass> event = new LinkedHashMap<String,baseClass>();
+	
+	ActionListener _executeButtonListener = new ActionListener() {
 		public void actionPerformed(ActionEvent e) {
+			System.out.println("IN executeButtonListener");
+			
+			String actionToExecute = ui.getActionToExecute();			
+			baseClass action = event.get(actionToExecute);
+			action.doAction();
+		
 		}
 	};
 
-	ActionListener _qcpResetButtonListener = new ActionListener() {
-		public void actionPerformed(ActionEvent e) {
-		}
-	};
 	
 	
-
-	public QCP(String scuae, String scuAddress, String scuPort, String scpae,
-			String scpAddress, String scpPort) {
+	public QCP(String localAETitle, String localIP, String localPort, 
+				String remoteAETitle, String remoteIP, String remotePort) {
+		
+		// Copy connection information.
+		local.aetitle = localAETitle;
+		local.ip = localIP;
+		local.port = localPort;
+		remote.aetitle = localAETitle;
+		remote.ip = remoteIP;
+		remote.port = remotePort;
+	
 		ui = new QCUI("Quality Check Provider");
+		
+		CreateActions();
+		
 	}
 
 	public QCUI getUI() {
 		return ui;
 	}
 	
+	
 	public void start() {
-		ui.setMainButtonListener(_qcpButtonListener);
-		ui.setResetButtonListener(_qcpResetButtonListener);
-		ui.setNextAction("");
+		
+		ui.setExecuteButtonListener(_executeButtonListener);
 		ui.setVisible(true);
 	}
 
+	public void CreateActions(){
+		addAction("Create UPS", new createUPS());
+		addAction("SubScribe", new subscribe());
+		addAction("NGET", new nget());
+		addAction("Unsubscribe", new unsubscribe());
+		addAction("CMOVE", new cmove());
+		addAction("Other", new other());
+		
+	}
+	// Adds the description 
+	public void addAction(String stringAction, baseClass myClass)
+	{
+		event.put(stringAction, myClass);
+		ui.addTextToComboBox(stringAction);
+	}
 }

@@ -33,7 +33,8 @@ public class QCR {
 
 	ActionListener _qcrButtonListener = new ActionListener() {
 		public void actionPerformed(ActionEvent e) {
-			stateCounter = (stateCounter+1) % STATE_TOTAL;
+			//stateCounter = (stateCounter+1) % STATE_TOTAL;
+			System.out.println("IM HERE");
 			updateUI();
 			followThroughOnAction();
 		}
@@ -70,8 +71,7 @@ public class QCR {
 	public QCR(String scuae, String scuAddress, String scuPort, String scpae,
 			String scpAddress, String scpPort) {
 		ui = new QCUI("Quality Check Requester");
-		ui.setMainButtonListener(_qcrButtonListener);
-		ui.setResetButtonListener(_qcrRestButtonListener);
+		ui.setExecuteButtonListener(_qcrButtonListener);
 		updateUI();
 		
 	}
