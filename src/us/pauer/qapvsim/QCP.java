@@ -24,17 +24,8 @@
 
 package us.pauer.qapvsim;
 
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.util.EnumMap;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
-
-import javax.swing.JButton;
-
-public class QCP {
-	private QCUI ui;
+public class QCP extends baseQualityCheck{
+	
 	
 	/** 
 	 * The UPS SCP has a default waiting for input mode.
@@ -53,119 +44,70 @@ public class QCP {
 	 *  
 	 */
 
-	public class baseClass
-	{
-		public void doAction(){
-			System.out.println("Implement me!");
-		}
-	}
 	
-	public class createUPS extends baseClass
+	
+	public class createUPS extends baseActionClass
 	{
 		public void doAction()
 		{ 
-				System.out.println("createUPS");
+			System.out.println("createUPS");
+				
 		}
 	}
 	
-	public class subscribe extends baseClass
+	public class subscribe extends baseActionClass
 	{
 		public void doAction()
 		{ 
-				System.out.println("subscribe");
+			System.out.println("subscribe");
 		}
 	}
 	
-	public class nget extends baseClass
+	public class nget extends baseActionClass
 	{
 		public void doAction()
 		{ 
-				System.out.println("nget");
+			System.out.println("nget");
 		}
 	}
 	
-	public class unsubscribe extends baseClass
+	public class unsubscribe extends baseActionClass
 	{
 		public void doAction()
 		{ 
-				System.out.println("unsubscribe");
+			System.out.println("unsubscribe");
 		}
 	}
 	
-	public class cmove extends baseClass
+	public class cmove extends baseActionClass
 	{
 		public void doAction()
 		{ 
-				System.out.println("cmove");
+			System.out.println("cmove");
 		}
 	}
 	
-	public class other extends baseClass
+	public class other extends baseActionClass
 	{
 		public void doAction()
 		{ 
-				System.out.println("other");
+			System.out.println("other");
 		}
 	}
 	
-	
-	enum states { WAIT_USER, WAIT_SUBSCRIBE, WAIT_OTHER};
-	
-	class events {
-		public actions action;
-		public String stringAction;
-	};
-	
-	class connectionInfo{
-		public String aetitle;
-		public String ip;
-		public String port;
-	}
-	
-	private connectionInfo local = new connectionInfo();
-	private connectionInfo remote = new connectionInfo();
-	
-	private Map<String,baseClass> event = new LinkedHashMap<String,baseClass>();
-	
-	ActionListener _executeButtonListener = new ActionListener() {
-		public void actionPerformed(ActionEvent e) {
-			System.out.println("IN executeButtonListener");
-			
-			String actionToExecute = ui.getActionToExecute();			
-			baseClass action = event.get(actionToExecute);
-			action.doAction();
+	public QCP(){
+		// Implement me
 		
-		}
-	};
-
-	
+	}
 	
 	public QCP(String localAETitle, String localIP, String localPort, 
-				String remoteAETitle, String remoteIP, String remotePort) {
-		
-		// Copy connection information.
-		local.aetitle = localAETitle;
-		local.ip = localIP;
-		local.port = localPort;
-		remote.aetitle = localAETitle;
-		remote.ip = remoteIP;
-		remote.port = remotePort;
-	
-		ui = new QCUI("Quality Check Provider");
-		
+				String remoteAETitle, String remoteIP, String remotePort)  
+	{
+		super(localAETitle, localIP, localPort,
+			  remoteAETitle, remoteIP, remotePort);
+		setFrameTitle("Quality Check Provider");
 		CreateActions();
 		
-	}
-
-	public QCUI getUI() {
-		return ui;
-	}
-	
-	
-	public void start() {
-		
-		ui.setExecuteButtonListener(_executeButtonListener);
-		ui.setVisible(true);
 	}
 
 	public void CreateActions(){
@@ -177,10 +119,5 @@ public class QCP {
 		addAction("Other", new other());
 		
 	}
-	// Adds the description 
-	public void addAction(String stringAction, baseClass myClass)
-	{
-		event.put(stringAction, myClass);
-		ui.addTextToComboBox(stringAction);
-	}
+	
 }

@@ -85,8 +85,7 @@ public class QAPVSim extends JFrame{
 					perAETextField.getText(),
 					perIPTextField.getText(),
 					perPortTextField.getText());
-			
-			
+			_QCR.start();
 			
 		}
 	};
@@ -99,10 +98,11 @@ public class QAPVSim extends JFrame{
 					perIPTextField.getText(),
 					perPortTextField.getText());
 			_QCP.start();
-			System.out.println("TeST");
-			
+		
 		}
 	};
+	
+	
 	public QAPVSim() {
 		this.setSize(300,100);
 		this.setTitle("QAPV Simulator");

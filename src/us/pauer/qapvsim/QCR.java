@@ -6,12 +6,18 @@ import java.awt.event.ActionListener;
 import org.dcm4che2.data.BasicDicomObject;
 import org.dcm4che2.data.DicomObject;
 
+import us.pauer.qapvsim.QCP.cmove;
+import us.pauer.qapvsim.QCP.createUPS;
+import us.pauer.qapvsim.QCP.nget;
+import us.pauer.qapvsim.QCP.other;
+import us.pauer.qapvsim.QCP.subscribe;
+import us.pauer.qapvsim.QCP.unsubscribe;
 
 
 
-public class QCR {
-	private QCUI ui;
-	
+
+public class QCR extends baseQualityCheck{
+
 	
 	private static final int STATE_INIT = 0;
 	private static final int STATE_CREATING = 1;
@@ -31,61 +37,77 @@ public class QCR {
 	String[] stateMessages = new String[] {"Wating for User Input", "Creating UPS",
 			"Waiting for User Input", "Subscribing"};
 
-	ActionListener _qcrButtonListener = new ActionListener() {
-		public void actionPerformed(ActionEvent e) {
-			//stateCounter = (stateCounter+1) % STATE_TOTAL;
-			System.out.println("IM HERE");
-			updateUI();
-			followThroughOnAction();
+	public class waitForRequest extends baseActionClass
+	{
+		public void doAction()
+		{ 
+			System.out.println("waitForRequest");
+				
 		}
-		
-
-		private void followThroughOnAction() {
-			switch (stateCounter) {
-			case STATE_CREATING: 
-				for (int i=0; i<100000000; i++);
-				stateCounter = (stateCounter+1) % STATE_TOTAL;
-				updateUI();
-				break;
-			case STATE_SUBSCRIBING:
-				for (int i=0; i<100000000; i++);
-				stateCounter = (stateCounter+1) % STATE_TOTAL;
-				updateUI();
-				break;
-			default:return;
-			}
-			
-		}
-	};
-
-	ActionListener _qcrRestButtonListener = new ActionListener() {
-		public void actionPerformed(ActionEvent e) {
-			stateCounter = 0;
-			updateUI();
-		}
-	};
-
+	}
 	
+	public class waitForSubscribe extends baseActionClass
+	{
+		public void doAction()
+		{ 
+			System.out.println("waitForSubscribe");
+		}
+	}
 	
-
-	public QCR(String scuae, String scuAddress, String scuPort, String scpae,
-			String scpAddress, String scpPort) {
-		ui = new QCUI("Quality Check Requester");
-		ui.setExecuteButtonListener(_qcrButtonListener);
-		updateUI();
+	public class subscribe extends baseActionClass
+	{
+		public void doAction()
+		{ 
+			System.out.println("subscribe");
+		}
+	}
+	
+	public class unsubscribe extends baseActionClass
+	{
+		public void doAction()
+		{ 
+			System.out.println("unsubscribe");
+		}
+	}
+	
+	public class cmove extends baseActionClass
+	{
+		public void doAction()
+		{ 
+			System.out.println("cmove");
+		}
+	}
+	
+	public class other extends baseActionClass
+	{
+		public void doAction()
+		{ 
+			System.out.println("other");
+		}
+	}
+	
+	public QCR(){
+		// Implement me
+	}
+	
+	public QCR(String localAETitle, String localIP, String localPort, 
+				String remoteAETitle, String remoteIP, String remotePort)  
+	{	
+		super(localAETitle, localIP, localPort,
+			  remoteAETitle, remoteIP, remotePort);
+		setFrameTitle("Quality Check Requestor");
+		CreateActions();
 		
 	}
 
-	public QCUI getUI() {
-		return ui;
+	public void CreateActions(){
+		addAction("Wait for Request", new waitForRequest());
+		addAction("Wait for Subscrube", new waitForSubscribe());
+		addAction("subscribe", new subscribe());
+		addAction("Unsubscribe", new unsubscribe());
+		addAction("CMOVE", new cmove());
+		addAction("Other", new other());
+		
 	}
-
-	private void updateUI() {
-		ui.setVisible(false);
-		ui.setNextAction(actions[stateCounter]);
-		ui.setLastMessage(messages[stateCounter]);
-		ui.setCurrentState(stateMessages[stateCounter]);
-		ui.setVisible(true);
-	}
-
+	
 }

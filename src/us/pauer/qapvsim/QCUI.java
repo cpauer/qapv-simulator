@@ -34,9 +34,9 @@ public class QCUI extends JFrame {
 	private JLabel localIPLabel = new JLabel("IP: ");
 	private JLabel localPortLabel = new JLabel("PORT: ");
 	
-	private JLabel localAEText = new JLabel("AETITLE");
-	private JLabel localIPText = new JLabel("localhost");
-	private JLabel localPortText = new JLabel("4545");
+	private JTextField localAETitle = new JTextField(10);
+	private JTextField localIP = new JTextField(10);
+	private JTextField localPort = new JTextField(10);
 	
 
 	private JPanel remotePanel = new JPanel();
@@ -65,22 +65,26 @@ public class QCUI extends JFrame {
 		this(appTitle, true);
 	}
 
-
+	public QCUI()
+	{
+		this("unknown", true);
+	}
+	
 	public QCUI(String appTitle, boolean actionButtonNeeded) {
 		super();
 		infoBox.add( Box.createHorizontalStrut(10));
 		infoBox.add(localAETitleLabel);
-		infoBox.add(localAEText);
+		infoBox.add(localAETitle);
 		infoBox.add( Box.createHorizontalStrut(10));
 		infoBox.add(new JSeparator(SwingConstants.VERTICAL));
 		infoBox.add( Box.createHorizontalStrut(1));
 		infoBox.add(localIPLabel);
-		infoBox.add(localIPText);
+		infoBox.add(localIP);
 		infoBox.add( Box.createHorizontalStrut(5));
 		infoBox.add(new JSeparator(SwingConstants.VERTICAL));
 		infoBox.add( Box.createHorizontalStrut(5));
 		infoBox.add(localPortLabel);
-		infoBox.add(localPortText);
+		infoBox.add(localPort);
 		infoBox.add( Box.createHorizontalStrut(10));
 		
 		remotePanel.add(remoteAETitleLabel);
@@ -157,10 +161,82 @@ public class QCUI extends JFrame {
 	public void setResetButtonListener(ActionListener aListener) {
 		resetButton.addActionListener(aListener);
 	}
-
+	
+	public String getRemoteAETitle()
+	{
+		return remoteAETitle.getText();
+	}
+	
+	public void setRemoteAETitle(String aetitle){
+		remoteAETitle.setText(aetitle);
+	}
+	
+	public String getRemoteIP(){
+		return remoteIP.getText();
+	}
+	
+	public void setRemoteIP(String IP){
+		remoteIP.setText(IP);
+	}
+	
+	public String getRemotePortIP(){
+		return remoteIP.getText();
+	}
+	
+	public void setRemotePort(String Port){
+		remotePort.setText(Port);
+	}
+	
+	public String getLocalAETitle()
+	{
+		return localAETitle.getText();
+	}
+	
+	public void setLocalAETitle(String aetitle){
+		localAETitle.setText(aetitle);
+	}
+	
+	public String getLocalIP(){
+		return localIP.getText();
+	}
+	
+	public void setLocalIP(String IP){
+		localIP.setText(IP);
+	}
+	
+	public String getLocalPort(){
+		return localIP.getText();
+	}
+	
+	public void setLocalPort(String Port){
+		localPort.setText(Port);
+	}
+	
 	public void addTextToComboBox(String actionString)
 	{
-		System.out.println("ADDING:" + actionString);
 		action.addItem(actionString);
+	}
+	
+	public void setState(String stateString){
+		state.setText(stateString);
+	}
+	
+	public String getState(){
+		return state.getText();
+	}
+	
+	public void setButtonToExecute()
+	{
+		execute.setText("Execute");
+	}
+	
+	public void setButtonToCancel()
+	{
+		execute.setText("Cancel");
+	}
+	
+	public String getExecuteButtonText()
+	{
+		return execute.getText();
 	}
 }
