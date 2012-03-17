@@ -1,8 +1,10 @@
 package us.pauer.qapvsim;
 
+import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.event.ActionListener;
 
+import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
@@ -15,6 +17,7 @@ import javax.swing.JSeparator;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.SwingConstants;
+import javax.swing.border.TitledBorder;
 
 public class QCUI extends JFrame {
 
@@ -26,27 +29,29 @@ public class QCUI extends JFrame {
 	private JTextArea messageArea = new JTextArea(10, 10);
 	private JScrollPane scrollArea = new JScrollPane(messageArea);
 	private Box mainBox = new Box(BoxLayout.Y_AXIS);
-	//private Box topBox = new Box(BoxLayout.X_AXIS);
+
 	
+	private JPanel localPanel = new JPanel();
 	
-	private Box infoBox = new Box(BoxLayout.X_AXIS);
-	private JLabel localAETitleLabel = new JLabel("Local AE Title: ");
+	private Box localBox = new Box(BoxLayout.Y_AXIS);
+	private JLabel localAETitleLabel = new JLabel("AE Title: ");
 	private JLabel localIPLabel = new JLabel("IP: ");
 	private JLabel localPortLabel = new JLabel("PORT: ");
 	
 	private JTextField localAETitle = new JTextField(10);
 	private JTextField localIP = new JTextField(10);
-	private JTextField localPort = new JTextField(10);
+	private JTextField localPort = new JTextField(5);
 	
 
 	private JPanel remotePanel = new JPanel();
-	
-	private JLabel remoteAETitleLabel = new JLabel("Remote AE Title: ");
+	private Box remoteBox = new Box(BoxLayout.Y_AXIS);
+	private JLabel remoteAETitleLabel = new JLabel("AE Title: ");
 	private JLabel remoteIPLabel = new JLabel("IP: ");
 	private JLabel remotePortLabel = new JLabel("PORT: ");
 	private JTextField remoteAETitle = new JTextField(10); // remote AE Title
 	private JTextField remoteIP = new JTextField(10);   // remote IP
 	private JTextField remotePort = new JTextField(5);  // remote Port
+	
 	
 	private Box actionBox = new Box(BoxLayout.X_AXIS);
 	private JComboBox action = new JComboBox();
@@ -72,20 +77,15 @@ public class QCUI extends JFrame {
 	
 	public QCUI(String appTitle, boolean actionButtonNeeded) {
 		super();
-		infoBox.add( Box.createHorizontalStrut(10));
-		infoBox.add(localAETitleLabel);
-		infoBox.add(localAETitle);
-		infoBox.add( Box.createHorizontalStrut(10));
-		infoBox.add(new JSeparator(SwingConstants.VERTICAL));
-		infoBox.add( Box.createHorizontalStrut(1));
-		infoBox.add(localIPLabel);
-		infoBox.add(localIP);
-		infoBox.add( Box.createHorizontalStrut(5));
-		infoBox.add(new JSeparator(SwingConstants.VERTICAL));
-		infoBox.add( Box.createHorizontalStrut(5));
-		infoBox.add(localPortLabel);
-		infoBox.add(localPort);
-		infoBox.add( Box.createHorizontalStrut(10));
+		
+		localPanel.add(localAETitleLabel);
+		localPanel.add(localAETitle);
+		localPanel.add(localIPLabel);
+		localPanel.add(localIP);
+		localPanel.add(localPortLabel);
+		localPanel.add(localPort);
+		localBox.add(localPanel);
+		localBox.setBorder(BorderFactory.createTitledBorder("Local"));
 		
 		remotePanel.add(remoteAETitleLabel);
 		remotePanel.add(remoteAETitle);
@@ -93,24 +93,31 @@ public class QCUI extends JFrame {
 		remotePanel.add(remoteIP);
 		remotePanel.add(remotePortLabel);
 		remotePanel.add(remotePort);
+		remoteBox.add(remotePanel);
+		remoteBox.setBorder(BorderFactory.createTitledBorder("Remote"));
 		
+		actionBox.add(Box.createHorizontalStrut(10));
 		actionBox.add(action);
+		actionBox.add(Box.createHorizontalStrut(10));
 		actionBox.add(execute);
-		
+		actionBox.add(Box.createHorizontalStrut(10));
+		remoteBox.add(actionBox);
+		remoteBox.add(Box.createVerticalStrut(10));
 		
 		stateBox.add(stateLabel);
 		stateBox.add(state);
 		
-		mainBox.add(infoBox);
-		mainBox.add(remotePanel);
-		mainBox.add(actionBox);
+		mainBox.add(Box.createVerticalStrut(10));
+		mainBox.add(localBox);
+		mainBox.add(Box.createVerticalStrut(10));
+		mainBox.add(remoteBox);
+		mainBox.add(Box.createVerticalStrut(10));
 		mainBox.add(stateBox);
+		mainBox.add(Box.createVerticalStrut(10));
 		mainBox.add(scrollArea);
 		
-		
-		
 		this.getContentPane().add(mainBox);
-		this.setSize(500,300);
+		this.setSize(500,400);
 		this.setTitle(appTitle);
 		this.setDefaultCloseOperation(EXIT_ON_CLOSE);
 	}
