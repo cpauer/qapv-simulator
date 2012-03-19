@@ -153,10 +153,10 @@ public class Testupsfunctions extends TestCase {
 		Executor executor = new NewThreadExecutor(name);
 		NetworkApplicationEntity ae = new NetworkApplicationEntity();
 		NetworkConnection localConn = new NetworkConnection();
-
+	
 		device.setNetworkApplicationEntity(ae);
 		device.setNetworkConnection(localConn);
-
+	
 		ae.setNetworkConnection(localConn);
 		ae.setAssociationInitiator(true);
 		ae.setAssociationAcceptor(false);
@@ -167,7 +167,7 @@ public class Testupsfunctions extends TestCase {
 				new TransferCapability(UID.UnifiedProcedureStepPushSOPClass,
 						DEF_TS, TransferCapability.SCU)
 		});  
-
+	
 		NetworkApplicationEntity remoteAE = new NetworkApplicationEntity();
 		NetworkConnection remoteConn = new NetworkConnection();
 		
@@ -184,7 +184,7 @@ public class Testupsfunctions extends TestCase {
 		DicomObject attrs = setInitialUPSAttributesForNCreate();
 		String transferSyntaxUid = UID.ImplicitVRLittleEndian;
 	    DimseRSP rsp = null;
-
+	
 	    Association assoc = null;
 		try {
 			assoc = ae.connect(remoteAE, executor);
@@ -206,7 +206,7 @@ public class Testupsfunctions extends TestCase {
 		finally {
 			scp.stop();
 		}
-
+	
 	}
 		
 	
@@ -332,6 +332,7 @@ public class Testupsfunctions extends TestCase {
 			rsp = assoc.naction(abstractSyntaxUID, sopClassUid, instanceUid,
 					3, subscribeObject, transferSyntaxUid); 
 			while (!rsp.next()){}
+			//while (true){}
 			assertTrue(rsp!=null);
 			assertTrue(rsp.getCommand()!=null);
 		} catch (IOException e) {
@@ -357,12 +358,133 @@ public class Testupsfunctions extends TestCase {
 	{
 		assertTrue(true);
 	}
-	
+*/	
 	public void testUnsubscribeToUPSProgressUpdate()
 	{
-		assertTrue(true);
+	    String[] DEF_TS = { UID.ImplicitVRLittleEndian ,
+	    		UID.ExplicitVRLittleEndian};
+		UPSSCP scp = new UPSSCP("QCP", "localhost", 40405);
+		try {
+			scp.start();
+		} catch (IOException e1) {
+			e1.printStackTrace();
+			assertTrue(false);
+		}
+		String name = "TestSCUUnsubscribe";
+		Device device = new Device(name);
+		
+		Executor executor = new NewThreadExecutor(name);
+		NetworkApplicationEntity ae = new NetworkApplicationEntity();
+		NetworkConnection localConn = new NetworkConnection();
+
+		device.setNetworkApplicationEntity(ae);
+		device.setNetworkConnection(localConn);
+
+		ae.setNetworkConnection(localConn);
+		ae.setAssociationInitiator(true);
+		ae.setAssociationAcceptor(false);
+		ae.setAETitle(name);
+		ae.setTransferCapability(new TransferCapability[] {
+				new TransferCapability(UID.VerificationSOPClass,
+						DEF_TS, TransferCapability.SCU),
+				new TransferCapability(UID.UnifiedProcedureStepPushSOPClass,
+						DEF_TS, TransferCapability.SCU),
+				new TransferCapability(UID.UnifiedProcedureStepWatchSOPClass,
+						DEF_TS, TransferCapability.SCU)
+		});  
+
+		NetworkApplicationEntity remoteAE = new NetworkApplicationEntity();
+		NetworkConnection remoteConn = new NetworkConnection();
+		
+		remoteAE.setInstalled(true);
+		remoteAE.setAssociationAcceptor(true);
+		remoteConn.setHostname("localhost");
+		remoteConn.setPort(40405);
+		remoteAE.setNetworkConnection(remoteConn);
+		remoteAE.setAETitle("QCP");
+		//start Create association
+		String abstractSyntaxUID = UID.UnifiedProcedureStepPushSOPClass;
+		String sopClassUid = UID.UnifiedProcedureStepPushSOPClass;
+		String instanceUid = null;   //let the scp assign the instance uid
+		DicomObject attrs = setInitialUPSAttributesForNCreate();
+		String transferSyntaxUid = UID.ImplicitVRLittleEndian;
+	    DimseRSP rsp = null;
+
+	    Association assoc = null;
+		try {
+			assoc = ae.connect(remoteAE, executor);
+	        rsp =  assoc.ncreate(abstractSyntaxUID, sopClassUid, instanceUid, attrs,
+	                transferSyntaxUid);
+	        while (!rsp.next()){}
+	        assertTrue(rsp!=null);
+	        assertTrue(rsp.getDataset()!=null);
+	        // here we capture the instance uid returned from the SCP….
+	        instanceUid = rsp.getCommand().getString(Tag.AffectedSOPInstanceUID);
+		} catch (ConfigurationException e) {
+			System.out.println(e.getMessage());
+			assertTrue(false);
+		} catch (IOException e) {
+			System.out.println(e.getMessage());
+			assertTrue(false);
+		} catch (InterruptedException e) {
+			System.out.println(e.getMessage());
+			assertTrue(false);
+		}
+		//Start Subscribe association
+		abstractSyntaxUID = UID.UnifiedProcedureStepWatchSOPClass;
+		// sop class uid stays the same
+		//instance uid we received back from the create transaction
+		DicomObject subscribeObject = new BasicDicomObject();
+		
+		// These are required attributes for the N-Action subscribe as per Annex CC
+		subscribeObject.putString(Tag.ReceivingAE, VR.AE, "TestSCUUnsubscribe");
+		subscribeObject.putString(Tag.DeletionLock, VR.LO, "TRUE");
+		try {
+			// The Association class has an method signature for the subscribe and
+            // unsubscribe actions…note the “3” for the subscribe action…
+			rsp = assoc.naction(abstractSyntaxUID, sopClassUid, instanceUid,
+					3, subscribeObject, transferSyntaxUid); 
+			while (!rsp.next()){}
+			assertTrue(rsp!=null);
+			assertTrue(rsp.getCommand()!=null);
+		} catch (IOException e) {
+			System.out.println(e.getMessage());
+			assertTrue(false);
+		} catch (InterruptedException e) {
+			System.out.println(e.getMessage());
+			assertTrue(false);
+		}
+
+		// sop class uid stays the same
+		//instance uid we received back from the create transaction
+		DicomObject unsubscribeObject = new BasicDicomObject();
+		
+		// These are required attributes for the N-Action subscribe as per Annex CC
+		unsubscribeObject.putString(Tag.ReceivingAE, VR.AE, "TestSCUUnsubscribe");
+		try {
+			// The Association class has an method signature for the subscribe and
+            // unsubscribe actions…note the “4” for the unsubscribe action…
+			rsp = assoc.naction(abstractSyntaxUID, sopClassUid, instanceUid,
+					4, subscribeObject, transferSyntaxUid); 
+			while (!rsp.next()){}
+			assertTrue(rsp!=null);
+			assertTrue(rsp.getCommand()!=null);
+		} catch (IOException e) {
+			System.out.println(e.getMessage());
+			assertTrue(false);
+		} catch (InterruptedException e) {
+			System.out.println(e.getMessage());
+			assertTrue(false);
+		}
+		finally {
+			scp.stop();
+		}
+
 	}
-*/
+
+	
+	
+	
 	/** Not all attributes as described in table CC.2.5-3 are populated here
 	 * @return DicomObject   contains initial set of attributes for UPS
 	 */
@@ -384,6 +506,8 @@ public class Testupsfunctions extends TestCase {
 		returnObject.putNestedDicomObject(Tag.ScheduledWorkitemCodeSequence, workitemSequence);
 		returnObject.putString(Tag.StudyInstanceUID, VR.UI, UIDUtils.createUID());
 		DicomObject inputSeq = getInputInfoSequence();
+      	if (inputSeq==null) System.out.println("iis is " );		
+
 		returnObject.putSequence(Tag.InputInformationSequence);
 		returnObject.putNestedDicomObject(Tag.InputInformationSequence, inputSeq);
 		return returnObject;

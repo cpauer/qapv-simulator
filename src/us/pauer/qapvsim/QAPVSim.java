@@ -64,7 +64,7 @@ public class QAPVSim {
 			invokeAndRunQCR();
 		}
 		else {
-			if (getActorType().equalsIgnoreCase(TYPE_PROVIDER)) {
+			if (getActorType().equalsIgnoreCase(TYPE_PERFORMER)) {
 				invokeAndRunQCP();
 			}
 			else {

@@ -54,7 +54,6 @@ public class UPSSCP {
 	Executor executor;
 	NetworkApplicationEntity scp;
 	NetworkConnection scpConn;
-	//test comment for git tutorial
 	
 	static final String DEFAULT_PERSIST_LOCATION = "C:/QAPVSIM/SCP/";
 	
@@ -93,7 +92,7 @@ public class UPSSCP {
 		        DicomObject data) throws DicomServiceException, IOException {
 			System.out.println("Starting n-create on server");
 		    DicomObject rsp = CommandUtils.mkRSP(rq, CommandUtils.SUCCESS);
-		    String iuid = rq.getString(Tag.AffectedSOPInstanceUID);
+		    String iuid = data.getString(Tag.AffectedSOPInstanceUID);
 		    if (iuid == null) {
 		        iuid = UIDUtils.createUID();
 		        rq.putString(Tag.AffectedSOPInstanceUID, VR.UI, iuid);
@@ -111,27 +110,30 @@ public class UPSSCP {
             
         }
 
-        private DicomObject createUPS(DicomObject rq, DicomObject upsObject) {
+        private DicomObject createUPS(DicomObject rq, DicomObject data) {
         	System.out.println("in createUPS");
+        	DicomObject outObject = new BasicDicomObject();
         	//SOP Common
-        	upsObject.putString(Tag.SOPClassUID, VR.UI, UID.UnifiedProcedureStepPushSOPClass);
-        	upsObject.putString(Tag.SOPInstanceUID, VR.UI, rq.getString(Tag.AffectedSOPInstanceUID));
-        	upsObject.putDate(Tag.InstanceCreationDate, VR.DA, new Date());
-        	upsObject.putDate(Tag.InstanceCreationTime, VR.TM, new Date());
+        	outObject.putString(Tag.SOPClassUID, VR.UI, UID.UnifiedProcedureStepPushSOPClass);
+        	outObject.putString(Tag.SOPInstanceUID, VR.UI, data.getString(Tag.AffectedSOPInstanceUID));
+        	System.out.println("affect sop instance:"+data.getString(Tag.AffectedSOPInstanceUID));
+        	outObject.putDate(Tag.InstanceCreationDate, VR.DA, new Date());
+        	outObject.putDate(Tag.InstanceCreationTime, VR.TM, new Date());
         	//add appropriate items
-        	upsObject.putString(Tag.UnifiedProcedureStepState, VR.CS, "SCHEDULED");
-        	upsObject.putSequence(Tag.UnifiedProcedureStepProgressInformationSequence);
+        	outObject.putString(Tag.UnifiedProcedureStepState, VR.CS, "SCHEDULED");
+        	outObject.putSequence(Tag.UnifiedProcedureStepProgressInformationSequence);
+        	
         	DicomObject progressSeq = new BasicDicomObject();
         	progressSeq.putString(Tag.UnifiedProcedureStepProgress, VR.DS, "0");
         	progressSeq.putString(Tag.UnifiedProcedureStepProgressDescription, VR.ST, "Scheduled");
-        	upsObject.putNestedDicomObject(Tag.UnifiedProcedureStepProgressInformationSequence, progressSeq);
+        	outObject.putNestedDicomObject(Tag.UnifiedProcedureStepProgressInformationSequence, progressSeq);
           	System.out.println("before IIS");
-    		DicomObject inputSequenceFromRequest = rq.getNestedDicomObject(Tag.InputInformationSequence);
+    		DicomObject inputSequenceFromRequest = data.getNestedDicomObject(Tag.InputInformationSequence);
           	if (inputSequenceFromRequest==null) System.out.println("iis is " );		
-        	upsObject.putSequence(Tag.InputInformationSequence);
-        	upsObject.putNestedDicomObject(Tag.InputInformationSequence, inputSequenceFromRequest);
+          	outObject.putSequence(Tag.InputInformationSequence);
+          	outObject.putNestedDicomObject(Tag.InputInformationSequence, inputSequenceFromRequest);
         	System.out.println("out createUPS");
-			return upsObject;
+			return outObject;
 		}
 
 		private void persistUPS(DicomObject upsObject) {
@@ -163,6 +165,8 @@ public class UPSSCP {
 			System.out.println("Starting n-action on server");
 		    DicomObject rsp = CommandUtils.mkRSP(command, CommandUtils.SUCCESS);
 		    // capture the incoming uid
+		    int stuff = command.getInt(Tag.ActionTypeID);
+		    System.out.println("Action id is "+stuff);
 		    String iuid = command.getString(Tag.RequestedSOPInstanceUID);
 		    String receivingAE = data.getString(Tag.ReceivingAE);
 		    String lockDeletion = data.getString(Tag.DeletionLock);
