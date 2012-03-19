@@ -24,13 +24,8 @@
 
 package us.pauer.qapvsim;
 
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-
-import javax.swing.JButton;
-
-public class QCP {
-	private QCUI ui;
+public class QCP extends baseQualityCheck{
+	
 	
 	/** 
 	 * The UPS SCP has a default waiting for input mode.
@@ -49,46 +44,80 @@ public class QCP {
 	 *  
 	 */
 
-	private static final int STATE_WAIT = 0;
-	private static final int STATE_PROCESSING_CREATE = 1;
-	private static final int STATE_PROCESSING_SUBSCRIBE = 2;
-	private static final int STATE_PROCESSING_NGET = 3;
-	private static final int STATE_PROCESSING_UNSUBSCRIBE = 4;
-	private static final int STATE_PROCESSING_CMOVE = 5;
-	private static final int STATE_TOTAL = 6;
 	
 	
-
-	int currentState = 0;
-	
-
-	
-	ActionListener _qcpButtonListener = new ActionListener() {
-		public void actionPerformed(ActionEvent e) {
+	public class createUPS extends baseActionClass
+	{
+		public void doAction()
+		{ 
+			System.out.println("createUPS");
+				
 		}
-	};
-
-	ActionListener _qcpResetButtonListener = new ActionListener() {
-		public void actionPerformed(ActionEvent e) {
+	}
+	
+	public class subscribe extends baseActionClass
+	{
+		public void doAction()
+		{ 
+			System.out.println("subscribe");
 		}
-	};
-	
-	
-
-	public QCP(String scuae, String scuAddress, String scuPort, String scpae,
-			String scpAddress, String scpPort) {
-		ui = new QCUI("Quality Check Provider");
-	}
-
-	public QCUI getUI() {
-		return ui;
 	}
 	
-	public void start() {
-		ui.setMainButtonListener(_qcpButtonListener);
-		ui.setResetButtonListener(_qcpResetButtonListener);
-		ui.setNextAction("");
-		ui.setVisible(true);
+	public class nget extends baseActionClass
+	{
+		public void doAction()
+		{ 
+			System.out.println("nget");
+		}
+	}
+	
+	public class unsubscribe extends baseActionClass
+	{
+		public void doAction()
+		{ 
+			System.out.println("unsubscribe");
+		}
+	}
+	
+	public class cmove extends baseActionClass
+	{
+		public void doAction()
+		{ 
+			System.out.println("cmove");
+		}
+	}
+	
+	public class other extends baseActionClass
+	{
+		public void doAction()
+		{ 
+			System.out.println("other");
+		}
+	}
+	
+	public QCP(){
+		// Implement me
+		
+	}
+	
+	public QCP(String localAETitle, String localIP, String localPort, 
+				String remoteAETitle, String remoteIP, String remotePort)  
+	{
+		super(localAETitle, localIP, localPort,
+			  remoteAETitle, remoteIP, remotePort);
+		setFrameTitle("Quality Check Provider");
+		CreateActions();
+		
 	}
 
+	public void CreateActions(){
+		addAction("Create UPS", new createUPS());
+		addAction("SubScribe", new subscribe());
+		addAction("NGET", new nget());
+		addAction("Unsubscribe", new unsubscribe());
+		addAction("CMOVE", new cmove());
+		addAction("Other", new other());
+		
+	}
+	
 }
