@@ -27,7 +27,7 @@ package us.pauer.qapvsim;
 public class QAPVSim {
 
 	private static final String TYPE_REQUESTER = "REQUESTER";
-	private static final String TYPE_PROVIDER = "PROVIDER";
+	private static final String TYPE_PERFORMER = "PERFORMER";
 
 	
 	private String _scuAe;
