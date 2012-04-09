@@ -23,6 +23,8 @@
 
 package us.pauer.qapvsim;
 
+import java.awt.Dimension;
+import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
@@ -94,7 +96,7 @@ public class CPQAPVSim extends JFrame{
 					perAETextField.getText(),
 					perIPTextField.getText(),
 					perPortTextField.getText());
-			//_QCR.start();
+			_QCR.start();
 		}
 	};
 	ActionListener performerActionListener = new ActionListener(){
@@ -116,6 +118,13 @@ public class CPQAPVSim extends JFrame{
 		this.setSize(300,100);
 		this.setTitle("QAPV Simulator");
 		this.setDefaultCloseOperation(EXIT_ON_CLOSE);
+        Toolkit tk = Toolkit.getDefaultToolkit();
+        Dimension screenSize = tk.getScreenSize();
+        final int width = screenSize.width;
+        final int height = screenSize.height;
+        // Setup the frame accordingly
+        this.setLocation(width/2,height/2);                
+		
 		
 		startRequestorButton.addActionListener(requestorActionListener);
 		startPerformerButton.addActionListener(performerActionListener);

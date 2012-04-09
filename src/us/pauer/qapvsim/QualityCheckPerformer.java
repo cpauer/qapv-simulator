@@ -25,13 +25,19 @@ package us.pauer.qapvsim;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.concurrent.Executor;
 
 import javax.swing.JComboBox;
+import javax.swing.JRadioButton;
 
 import org.dcm4che2.data.BasicDicomObject;
 import org.dcm4che2.data.DicomObject;
@@ -41,13 +47,19 @@ import org.dcm4che2.data.VR;
 import org.dcm4che2.io.DicomOutputStream;
 import org.dcm4che2.net.Association;
 import org.dcm4che2.net.CommandUtils;
+import org.dcm4che2.net.ConfigurationException;
 import org.dcm4che2.net.Device;
 import org.dcm4che2.net.DicomServiceException;
+import org.dcm4che2.net.DimseRSP;
+import org.dcm4che2.net.DimseRSPHandler;
 import org.dcm4che2.net.NetworkApplicationEntity;
 import org.dcm4che2.net.NetworkConnection;
 import org.dcm4che2.net.NewThreadExecutor;
+import org.dcm4che2.net.PDVInputStream;
+import org.dcm4che2.net.SingleDimseRSP;
 import org.dcm4che2.net.TransferCapability;
 import org.dcm4che2.net.service.CEchoSCP;
+import org.dcm4che2.net.service.CStoreSCP;
 import org.dcm4che2.net.service.DicomService;
 import org.dcm4che2.net.service.NActionSCP;
 import org.dcm4che2.net.service.NCreateSCP;
@@ -83,48 +95,32 @@ public class QualityCheckPerformer extends Thread {
 	 * @author Chris Pauer
 	 *
 	 */
-	private enum QcpState {
-		WAITING_FOR_CREATE_REQUEST("Waiting for create request", "", 
-				"Waiting for create request", "Waiting..."),
-		CREATING_UPS("Creating UPS", "", "Creating UPS for Quality Check...",
-				"Creating UPS for Qulity Check..."),
-		WAITING_FOR_SUBSCRIBE_REQUEST("Waiting for subscribe request", "", "Waiting for subscribe...", "Waiting for " +
-				"subscribe....."),
-		ADD_SUBSCRIPTION_TO_UPS("Subscribing", "", "Add subscriber to UPS...",
-				"Adding subscriber to UPS..."),
-		WAITING_FOR_NEXT_REQUEST("Waiting for next request", "", "Waiting for next...", "Waiting for " +
-				"next.....");
+	private ArrayList<String> QcpAction = new ArrayList<String>(Arrays.asList(new String[] {
+		"Fetch Workitem",
+		"Do Quality Check"
+	}));
 		
-		private final String actionText;  // value that is displayed next to action button
-		private final String buttonText;  // value that is displayed on the action button
-		private final String logText;  //value to put in the log area when this state is loaded
-		private final String stateText; //value to put in the state message box
-		QcpState(String pActionText, String pButtonText, String pLogText, String pStateText) {
-			this.actionText = pActionText;
-			this.buttonText = pButtonText;
-			this.logText = pLogText;
-			this.stateText = pStateText;
-		}
-		private String getActionText() { return actionText; }
-		private String getButtonText() { return buttonText; }
-		private String getLogText() { return logText; }
-		private String getStateText() { return stateText; }
-	}
 	
 	// counter for the state to make sure we know where we currently are in the workflow lifecycle
-	static int stateCounter = 0;
-	
+	int stateCounter = 0;
+
 	Device device;
 	Executor executor;
-	NetworkApplicationEntity scp;
-	NetworkConnection scpConn;
+	NetworkApplicationEntity ae;
+	NetworkApplicationEntity remoteAE;
+	NetworkConnection aeConn;
 
 	// window title
 	static final String WINDOW_TITLE = "Performer";
 
-	static final String DEFAULT_PERSIST_LOCATION = "C:/QAPVSIM/SCP/";
+	static final String DEFAULT_PERSIST_LOCATION = "C:/QAPVSIM/QCP/";
+	static final String DEFAULT_DCM_TRACK_LOCATION = DEFAULT_PERSIST_LOCATION+"TRAFFIC/";
+	static final String SUBSCRIBE_FILE_NAME = "SUBSCRIBED.DATA";
 	
 	String persistLocation = DEFAULT_PERSIST_LOCATION;
+	
+	String lastCreatedUid = "";
+	boolean subscriptionsExist = false;
 	
 
     private static final String[] ONLY_DEF_TS = { UID.ImplicitVRLittleEndian };
@@ -137,8 +133,9 @@ public class QualityCheckPerformer extends Thread {
         public void actionPerformed(ActionEvent e) {
         		//turn off button so multiple actions are prevented
         		//  the state engine will set the button to enabled if needed
-        		ui.setActionButtonEnabled(false);
-        		changeToNextState();
+    		ui.setActionButtonEnabled(false);
+    		ui.setActionListEnabled(false);
+    		followThroughOnAction(stateCounter);
         }
     };
     
@@ -154,6 +151,7 @@ public class QualityCheckPerformer extends Thread {
                 stateCounter = -1;
         }
     };
+    //some components specific to the performer to put on the ui
 	
 
     private static class QCPVerificationService extends DicomService implements CEchoSCP {
@@ -168,7 +166,7 @@ public class QualityCheckPerformer extends Thread {
         public void cecho(Association as, int pcid, DicomObject cmd)
                 throws IOException {
             as.writeDimseRSP(pcid, CommandUtils.mkRSP(cmd, CommandUtils.SUCCESS));
-            System.out.println("C-Echo has responded");
+            QualityCheckPerformer.ui.setLastMessage("C-Echo has responded");
         }
     }
 
@@ -182,10 +180,10 @@ public class QualityCheckPerformer extends Thread {
 
         public void ncreate(Association as, int pcid, DicomObject rq,
 		        DicomObject data) throws DicomServiceException, IOException {
-			System.out.println("Starting n-create on server");
-			changeToNextState();
+        	QualityCheckPerformer.ui.setLastMessage("Starting n-create on server");
 		    DicomObject rsp = CommandUtils.mkRSP(rq, CommandUtils.SUCCESS);
 		    String iuid = data.getString(Tag.AffectedSOPInstanceUID);
+		    
 		    if (iuid == null) {
 		        iuid = UIDUtils.createUID();
 		        ui.setLastMessage("UID for UPS is "+iuid);
@@ -193,12 +191,10 @@ public class QualityCheckPerformer extends Thread {
 		        rsp.putString(Tag.AffectedSOPInstanceUID, VR.UI, iuid);
 		    }
 		    as.writeDimseRSP(pcid, rsp, doNCreate(as, pcid, rq, data, rsp));
-		    changeToNextState();
 		}
         
         private DicomObject doNCreate(Association as, int pcid, DicomObject rq,
                 DicomObject data, DicomObject rsp) throws IOException {
-        	System.out.println("in N-Create");
         	DicomObject UPSObject = createUPS(rq, data);
         	persistUPS(UPSObject);
     		return UPSObject;
@@ -206,12 +202,12 @@ public class QualityCheckPerformer extends Thread {
         }
 
         private DicomObject createUPS(DicomObject rq, DicomObject data) {
-        	System.out.println("in createUPS");
         	DicomObject outObject = new BasicDicomObject();
         	//SOP Common
         	outObject.putString(Tag.SOPClassUID, VR.UI, UID.UnifiedProcedureStepPushSOPClass);
-        	outObject.putString(Tag.SOPInstanceUID, VR.UI, data.getString(Tag.AffectedSOPInstanceUID));
-        	System.out.println("affect sop instance:"+data.getString(Tag.AffectedSOPInstanceUID));
+        	
+        	outObject.putString(Tag.SOPInstanceUID, VR.UI, rq.getString(Tag.AffectedSOPInstanceUID));
+        	String stuff = data.getString(Tag.AffectedSOPInstanceUID);
         	outObject.putDate(Tag.InstanceCreationDate, VR.DA, new Date());
         	outObject.putDate(Tag.InstanceCreationTime, VR.TM, new Date());
         	//add appropriate items
@@ -222,24 +218,20 @@ public class QualityCheckPerformer extends Thread {
         	progressSeq.putString(Tag.UnifiedProcedureStepProgress, VR.DS, "0");
         	progressSeq.putString(Tag.UnifiedProcedureStepProgressDescription, VR.ST, "Scheduled");
         	outObject.putNestedDicomObject(Tag.UnifiedProcedureStepProgressInformationSequence, progressSeq);
-          	System.out.println("before IIS");
     		DicomObject inputSequenceFromRequest = data.getNestedDicomObject(Tag.InputInformationSequence);
-          	if (inputSequenceFromRequest==null) System.out.println("iis is " );		
           	outObject.putSequence(Tag.InputInformationSequence);
           	outObject.putNestedDicomObject(Tag.InputInformationSequence, inputSequenceFromRequest);
-        	System.out.println("out createUPS");
 			return outObject;
 		}
 
+        
 		private void persistUPS(DicomObject upsObject) {
-        	System.out.println("in persistUPS");
     		try {
     			String instanceUid = upsObject.getString(Tag.SOPInstanceUID);
 				DicomOutputStream  outStream = new DicomOutputStream(new File(DEFAULT_PERSIST_LOCATION+
-						"/NCREATE."+instanceUid));
+						"/UPS."+instanceUid));
 				outStream.writeDataset(upsObject, UID.ImplicitVRLittleEndian);
 				outStream.close();
-	        	System.out.println("out persistUPS");
 			} catch (IOException e) {
 				System.out.println(e.getMessage());
 			}
@@ -257,31 +249,130 @@ public class QualityCheckPerformer extends Thread {
 
         public void naction(Association as, int pcid, DicomObject command,
 		        DicomObject data) throws DicomServiceException, IOException {
-			System.out.println("Starting n-action on server");
-			changeToNextState();
+        	QualityCheckPerformer.ui.setLastMessage("Starting n-action on server");
 		    DicomObject rsp = CommandUtils.mkRSP(command, CommandUtils.SUCCESS);
 		    // capture the incoming uid
-		    int stuff = command.getInt(Tag.ActionTypeID);
-		    System.out.println("Action id is "+stuff);
+		    int actionType = command.getInt(Tag.ActionTypeID);
+		    QualityCheckPerformer.ui.setLastMessage("Action id is "+(actionType==3?"Subscribe":"Unsubscribe"));
 		    String iuid = command.getString(Tag.RequestedSOPInstanceUID);
 		    String receivingAE = data.getString(Tag.ReceivingAE);
-		    ui.setLastMessage("Received subscribe request for uid "+iuid+" from "+receivingAE);
-		    String lockDeletion = data.getString(Tag.DeletionLock);
+		    if (actionType == 3) {
+		    	QualityCheckPerformer.ui.setLastMessage("Received subscribe request for uid "+iuid+" from "+receivingAE);
+		    	String lockDeletion = data.getString(Tag.DeletionLock);
 		    // We don’t implement an actual subscription persistence mechanism here, but you can see
             // we have the data available to do so….
-		    System.out.println("AE "+receivingAE+" is subscribed to SOP Class Instance "
+		    	QualityCheckPerformer.ui.setLastMessage("AE "+receivingAE+" is subscribed to SOP Class Instance "
 		    		+iuid+" with Delete Lock set to "+lockDeletion);
+		    	subscribe(iuid, receivingAE);
+		    	ui.setActionButtonEnabled(true);
+		    	ui.setActionListEnabled(true);
+		    	ui.setLastMessage("Waiting for service request, or action...");
+		    	ui.setCurrentState("Waiting for request or action...");
+		    } else {
+		    	QualityCheckPerformer.ui.setLastMessage("Received unsubscribe request for uid "+iuid+" from "+receivingAE);
+		    	QualityCheckPerformer.ui.setLastMessage("AE "+receivingAE+" is unsubscribed to SOP Class Instance "
+		    		+iuid);
+		    	unsubscribe(iuid, receivingAE);
+		    }
 		    as.writeDimseRSP(pcid, rsp, data);
-		    changeToNextState();
+		}
+
+		private void subscribe(String uid, String ae) {
+			ArrayList<String> subscriptions = new ArrayList();
+			try {
+			    File subfile = new File(DEFAULT_PERSIST_LOCATION+SUBSCRIBE_FILE_NAME);
+
+			    // Create file if it does not exist
+			    boolean success = subfile.createNewFile();
+			    if (success) {
+			        // File did not exist and was created
+			    } else {
+			        // File already exists
+			    }
+			    //read in subscribe persistence
+			    BufferedWriter out = new BufferedWriter(new FileWriter(subfile, true));
+			    out.write(uid+"$"+ae);
+			    out.close();
+			} catch (IOException e) {
+			}
+		}
+		private void unsubscribe(String uid, String ae) {
+			ArrayList<String> subscriptions = new ArrayList<String>();
+			boolean found = false;
+			try {
+				BufferedReader in = new BufferedReader(new FileReader(DEFAULT_PERSIST_LOCATION+SUBSCRIBE_FILE_NAME));
+				String str;
+				while ((str = in.readLine()) != null) {
+					if (str.lastIndexOf(uid)!=-1 && str.lastIndexOf(ae)!=-1) {
+						found = true;
+					} else {
+						subscriptions.add(str);
+					}
+				}
+				in.close();
+				if (found) {
+					boolean success = (new File(DEFAULT_PERSIST_LOCATION+SUBSCRIBE_FILE_NAME)).delete();
+					if (!success) {
+						throw new IOException("File cannot be written to for subscription");
+					}
+					BufferedWriter out = new BufferedWriter(new FileWriter(DEFAULT_PERSIST_LOCATION+SUBSCRIBE_FILE_NAME));
+					for (String outS:subscriptions) {
+						out.write(outS);
+					}
+					out.close();
+				} else {
+					//error
+				}
+			} catch (IOException e) {
+				
+			}
 		}
     }
 
     
+    private static class QCPCStoreService extends DicomService implements CStoreSCP {
+
+        private static final String[] sopClasses = { UID.RTPlanStorage, UID.RTIonPlanStorage };
+
+        public QCPCStoreService() {
+            super(sopClasses, null);
+        }
+		@Override
+		public void cstore(Association as, int pcid, DicomObject cmd,
+				PDVInputStream dataStream, String tsuid)
+				throws DicomServiceException, IOException {
+        	QualityCheckPerformer.ui.setLastMessage("Starting c-store of plan");
+		    DicomObject rsp = CommandUtils.mkRSP(cmd, CommandUtils.SUCCESS);
+		    DicomObject storeObject = dataStream.readDataset();
+		    String classUid = storeObject.getString(Tag.SOPClassUID);
+		    String instanceUid = storeObject.getString(Tag.SOPInstanceUID);
+		    QualityCheckPerformer.ui.setLastMessage("Class type is "+classUid+";  Instance is "+instanceUid);
+		    persistPlan(storeObject);
+		    as.writeDimseRSP(pcid, rsp);
+		}
+
+		private void persistPlan(DicomObject upsObject) {
+			try {
+				String instanceUid = upsObject.getString(Tag.SOPInstanceUID);
+				DicomOutputStream  outStream = new DicomOutputStream(new File(DEFAULT_PERSIST_LOCATION+
+						"/RTPLAN."+instanceUid));
+				outStream.writeDataset(upsObject, UID.ImplicitVRLittleEndian);
+				outStream.close();
+			} catch (IOException e) {
+				System.out.println(e.getMessage());
+			}
+	    }
+    }
+    
 	
 	public QualityCheckPerformer(String localAETitle, String localIP, String localPort, 
 			String remoteAETitle, String remoteIP, String remotePort) {
-		ui = new CPQCUI(WINDOW_TITLE, getActionList());
+		ui = new CPQCUI(WINDOW_TITLE, getActionList(), 600);
 		ui.setActionButtonEnabled(false);
+		ui.setActionListEnabled(false);
+		ui.setResetButtonListener(_qcpRestButtonListener);
+		ui.setActionButtonListener(_qcpActionButtonListener);
+		ui.setActionBoxListener(_qcpActionBoxListener);
 		
 		// Set connection information.
 		local.aetitle = localAETitle;
@@ -292,20 +383,9 @@ public class QualityCheckPerformer extends Thread {
 		remote.port = remotePort;		
 		initialize();
 			//do initial setting of UI
-		ui.setResetButtonListener(_qcpRestButtonListener);
-		ui.setActionButtonListener(_qcpActionButtonListener);
-		ui.setActionBoxListener(_qcpActionBoxListener);
-		updateUI("Waiting for UPS request", "Waiting for UPS request");
+		updateUI("Waiting for request", "Waiting for request");
 	}
-
-	private ArrayList getActionList() {
-		ArrayList<String> actions = new ArrayList<String>();
-		for (QcpState qcrs:QcpState.values())
-		{
-			actions.add(qcrs.buttonText);
-		}
-		return actions;
-	}
+	
 
 	
 	private void initialize() {
@@ -313,21 +393,41 @@ public class QualityCheckPerformer extends Thread {
 		String name = WINDOW_TITLE;
 		device = new Device(name);
 		executor = new NewThreadExecutor(name);
-		scp = new NetworkApplicationEntity();
-		scpConn = new NetworkConnection();
+		ae = new NetworkApplicationEntity();
+		aeConn = new NetworkConnection();
 		
-		scp.setInstalled(true);
-		scp.setAssociationAcceptor(true);
-		scp.setAETitle(local.aetitle);
-		scpConn.setHostname(local.ip);
-		scpConn.setPort(Integer.parseInt(local.port));
-		scp.setNetworkConnection(scpConn);
+		ae.setInstalled(true);
+		ae.setAssociationAcceptor(true);
+		ae.setAssociationInitiator(true);
+		ae.setAETitle(local.aetitle);
+		aeConn.setHostname(local.ip);
+		aeConn.setPort(Integer.parseInt(local.port));
+		ae.setNetworkConnection(aeConn);
 		
-		device.setNetworkApplicationEntity(scp);
-		device.setNetworkConnection(scpConn);
+		device.setNetworkApplicationEntity(ae);
+		device.setNetworkConnection(aeConn);
 		
-		setServices(scp);
-		setTransferCapabilities(scp);
+		setServices(ae);
+		setTransferCapabilities(ae);
+		
+		remoteAE = new NetworkApplicationEntity();
+		NetworkConnection remoteConn = new NetworkConnection();
+		
+		remoteAE.setInstalled(true);
+		remoteAE.setAssociationAcceptor(true);
+		remoteConn.setHostname(remote.ip);
+		remoteConn.setPort(Integer.parseInt(remote.port));
+		remoteAE.setNetworkConnection(remoteConn);
+		remoteAE.setAETitle(remote.aetitle);
+	}
+
+	private ArrayList getActionList() {
+		ArrayList<String> actions = new ArrayList<String>();
+		for (String qcrs:QcpAction)
+		{
+			actions.add(qcrs);
+		}
+		return actions;
 	}
 		
 	
@@ -335,7 +435,10 @@ public class QualityCheckPerformer extends Thread {
 		TransferCapability[] tc = new TransferCapability[] {
 				new TransferCapability(UID.VerificationSOPClass, ONLY_DEF_TS, TransferCapability.SCP),
 				new TransferCapability(UID.UnifiedProcedureStepPushSOPClass, ONLY_DEF_TS, TransferCapability.SCP),
-				new TransferCapability(UID.UnifiedProcedureStepWatchSOPClass, ONLY_DEF_TS, TransferCapability.SCP)};
+				new TransferCapability(UID.UnifiedProcedureStepWatchSOPClass, ONLY_DEF_TS, TransferCapability.SCP),
+				new TransferCapability(UID.StudyRootQueryRetrieveInformationModelMOVE, ONLY_DEF_TS, TransferCapability.SCU),
+				new TransferCapability(UID.RTPlanStorage, ONLY_DEF_TS, TransferCapability.SCP),
+				new TransferCapability(UID.RTIonPlanStorage, ONLY_DEF_TS, TransferCapability.SCP)};
 		ae.setTransferCapability(tc);
 		
 	}
@@ -344,6 +447,7 @@ public class QualityCheckPerformer extends Thread {
 		ae.register(new QCPVerificationService());
 		ae.register(new QCPNCreateService());
 		ae.register(new QCPNActionService());
+		ae.register(new QCPCStoreService());
 	}
 	
     public void run()  {
@@ -352,14 +456,11 @@ public class QualityCheckPerformer extends Thread {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
-        System.out.println("Start Server listening on port " + scpConn.getPort());
+        QualityCheckPerformer.ui.setLastMessage("Start Server listening on port " + aeConn.getPort());
     }
     
-	private static void changeToNextState() {
-        stateCounter = (stateCounter+1) % QcpState.values().length;
-	}
    
-	private void updateUI(String stateText, String logText) {
+	protected void updateUI(String stateText, String logText) {
 		ui.setCurrentState(stateText);
 		ui.setLastMessage(logText);
 		ui.setVisible(true);
@@ -367,40 +468,101 @@ public class QualityCheckPerformer extends Thread {
 	
 	
     private void followThroughOnAction(int stateCounter) {
-    	QcpState currentState = QcpState.values()[stateCounter];
-    	switch (currentState) {
-    		case WAITING_FOR_CREATE_REQUEST:
-    			//do nothing, waiting for UI interaction
+    	switch (stateCounter) {
+    		case 0:
+    			updateUI("Beginning fetch of workitem", "Fetching...");
+    			requestWorkitem();
+    			ui.setActionButtonEnabled(true);
+    			ui.setActionListEnabled(true);
     			break;
-    		case CREATING_UPS:
+    		case 1:
+    			//do quality check
     			break;
-    			
-    		case WAITING_FOR_SUBSCRIBE_REQUEST:
-    			//do nothing, waiting for request
-    			break;
-    		case ADD_SUBSCRIPTION_TO_UPS:
-    			break;
-    		case WAITING_FOR_NEXT_REQUEST:
-    			break;
-
 		default:
 			break;
 		}
         
     }
 
-    /*public void stop() {
-        if (device != null)
-            device.stopListening();
 
-        if (scpConn != null)
-            System.out.println("Stop Server listening on port " + scpConn.getPort());
-        else
-            System.out.println("Stop Server");
-    }*/
+	private void requestWorkitem() {
+		updateUI("Formatting RT Plan C-Move request...","Formatting request");
+		String sopClassUid = UID.StudyRootQueryRetrieveInformationModelMOVE;
+		DicomObject keys = setAttributesForCMove();
+		String transferSyntaxUid = UID.ImplicitVRLittleEndian;
+	
+	    AssociationWithLog assoc = null;
+		try {
+			assoc = new AssociationWithLog(ae.connect(remoteAE, executor));
+			updateUI("Sending C-Move Request for UID "+
+					keys.getString(Tag.ReferencedSOPInstanceUID), "Sending...");
+	        DimseRSPHandler rspHandler = new DimseRSPHandler() {
+	            @Override
+	            public void onDimseRSP(Association as, DicomObject cmd, DicomObject data) {
+	                QualityCheckPerformer.this.onMoveRSP(as, cmd, data);
+	            }
+	        };
+	        assoc.cmove(sopClassUid, 1, keys, transferSyntaxUid, local.aetitle, rspHandler);
+	        //rsp =  assoc.cmove(abstractSyntaxUID, sopClassUid, 1, attrs, 
+	        //		transferSyntaxUid, local.aetitle);
+			updateUI("Waiting for response on C-Move", "Waiting for response from "+remote.aetitle);
 
-	public String getAeTitle() {
-		return scp.getAETitle();
+	        assoc.waitForDimseRSP();
+			updateUI("Response received", "Response received");
+
+	        /*// Do some move error checking
+	        Exception e = getAssocException();
+	        if (e != null) {
+	            ui.setLastMessage("Exception ocurred on the association while retrieving:"+e.getMessage());
+	            throw new Exception("Exception ocurred on the association while retrieving.", e);
+	        } else if (isAbortingMove(moveStatus)) {
+	            StringBuffer str = new StringBuffer("Query/Retrieve SCP terminated move prematurally. Move status = ");
+	            str.append(Integer.toHexString(moveStatus));
+	            if (moveError != null) {
+	                str.append(", Move error = " + moveError);
+	            }
+	            log.error(fn + str.toString());
+	            throw new DcmMoveException(str.toString());
+	        }*/
+
+		} catch (ConfigurationException e) {
+			System.out.println(e.getMessage());
+		} catch (IOException e) {
+			System.out.println(e.getMessage());
+		} catch (InterruptedException e) {
+			System.out.println(e.getMessage());
+		}
+
+		
+	}
+
+	private void onMoveRSP(Association as, DicomObject cmd,
+			DicomObject data) {
+		System.out.println("got response");
+        /*if (!CommandUtils.isPending(cmd)) {
+            moveStatus = cmd.getInt(Tag.Status);
+            if (isAbortingMove(moveStatus)) {
+                checkError(cmd);
+            } else {
+                completed += cmd.getInt(Tag.NumberOfCompletedSuboperations);
+                warning += cmd.getInt(Tag.NumberOfWarningSuboperations);
+                failed += cmd.getInt(Tag.NumberOfFailedSuboperations);
+            }
+
+            fireStudyObjectMovedEvent();
+        }*/
+	}
+
+
+	private DicomObject setAttributesForCMove() {
+		DicomObject CMoveObject = new BasicDicomObject();
+		CMoveObject.putString(Tag.QueryRetrieveLevel, VR.CS, "STUDY");
+		CMoveObject.putString(Tag.StudyInstanceUID, VR.UI, "1.2.34.78");
+		CMoveObject.putString(Tag.SeriesInstanceUID, VR.UI, "1.2.34.78.1");
+		CMoveObject.putString(Tag.ReferencedSOPClassUID, VR.UI, UID.RTPlanStorage);
+		CMoveObject.putString(Tag.ReferencedSOPInstanceUID, VR.UI, "1.2.34.56");
+
+		return CMoveObject;
 	}
 
 
