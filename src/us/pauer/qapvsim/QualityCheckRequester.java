@@ -36,15 +36,19 @@ import org.dcm4che2.net.DataWriterAdapter;
 import org.dcm4che2.net.Device;
 import org.dcm4che2.net.DicomServiceException;
 import org.dcm4che2.net.DimseRSP;
+import org.dcm4che2.net.DimseRSPHandler;
 import org.dcm4che2.net.NetworkApplicationEntity;
 import org.dcm4che2.net.NetworkConnection;
 import org.dcm4che2.net.NewThreadExecutor;
+import org.dcm4che2.net.PDVInputStream;
 import org.dcm4che2.net.SingleDimseRSP;
 import org.dcm4che2.net.Status;
 import org.dcm4che2.net.TransferCapability;
 import org.dcm4che2.net.service.CEchoSCP;
 import org.dcm4che2.net.service.CMoveSCP;
+import org.dcm4che2.net.service.CStoreSCP;
 import org.dcm4che2.net.service.DicomService;
+import org.dcm4che2.net.service.NEventReportSCU;
 import org.dcm4che2.util.UIDUtils;
 
 import us.pauer.qapvsim.QualityCheckPerformer;
@@ -93,6 +97,8 @@ public class QualityCheckRequester extends Thread  {
 			"Echo QCP", 
 			"Create QC UPS", 
 			"Subscribe to UPS", 
+			"Get Progress/Output Info",
+			"Get Quality Check Report",
 			"Unsubscribe"
 			}));
 		
@@ -111,6 +117,8 @@ public class QualityCheckRequester extends Thread  {
 	static NetworkApplicationEntity ae;
 	static NetworkApplicationEntity remoteAE;
 	String upsUid;
+	String qReportUid;
+	DicomObject upsOutputSequence;
 	
 	
 
@@ -144,6 +152,37 @@ public class QualityCheckRequester extends Thread  {
         }
     };
 
+    private static class QCRNEventService extends DicomService implements NEventReportSCU {
+        private static final String[] sopClasses = { UID.UnifiedProcedureStepEventSOPClass };
+
+        public QCRNEventService() {
+            super(sopClasses, null);
+        }
+
+		public void neventReport(Association as, int pcid, DicomObject cmd,
+				DicomObject data) throws DicomServiceException, IOException {
+			
+        	ui.setLastMessage(">>>>>>>>>>>>>N-EVENT>>>>>>>>>>>>>>>");
+			ui.setLastMessage("Received N-Event Report...");
+        	ui.setCurrentState("Checking report...");
+            DicomObject cmdrsp = CommandUtils.mkRSP(cmd, CommandUtils.SUCCESS);
+            int eventType = cmd.getInt(Tag.EventTypeID);
+            if (eventType==1) {
+            	String state = data.getString(Tag.UnifiedProcedureStepState);
+            	ui.setCurrentState("UPS is "+state);
+            	ui.setLastMessage("Received update from Check Performer: Step is "+state);
+            	if (state.equalsIgnoreCase("COMPLETED") || state.equalsIgnoreCase("CANCELED")) {
+        		    	ui.setActionButtonEnabled(true);
+        		    	ui.setActionListEnabled(true);
+        		    	ui.setLastMessage("Waiting for service request, or action...");
+        		    	ui.setCurrentState("Waiting for request or action...");
+            	}
+            }
+            as.writeDimseRSP(pcid, cmdrsp, data);
+        	ui.setLastMessage("<<<<<<<<<<<<<N-EVENT<<<<<<<<<<<<<<<<");
+        }
+
+    }
     private static class QCRCMoveService extends DicomService implements CMoveSCP {
 
         private static final String[] sopClasses = { UID.StudyRootQueryRetrieveInformationModelMOVE };
@@ -154,6 +193,7 @@ public class QualityCheckRequester extends Thread  {
 
         public void cmove(Association as, int pcid, DicomObject cmd, DicomObject data)
                 throws DicomServiceException, IOException {
+        	ui.setLastMessage(">>>>>>>>>>>>>>>>>>C-Move>>>>>>>>>>>>>>>>>");
         	ui.setLastMessage("Received C-Move Request...");
         	ui.setCurrentState("Received C-Move request...");
             DicomObject cmdrsp = CommandUtils.mkRSP(cmd, CommandUtils.SUCCESS);
@@ -164,6 +204,7 @@ public class QualityCheckRequester extends Thread  {
                 throw new DicomServiceException(cmd, Status.ProcessingFailure);
             }
             as.writeDimseRSP(pcid, cmdrsp, rsp.getDataset());
+            ui.setLastMessage("<<<<<<<<<<<<<<<<<<C-Move<<<<<<<<<<<<<<<<<<");
         }
 
         protected DimseRSP doCMove(Association as, int pcid, DicomObject cmd,
@@ -178,6 +219,7 @@ public class QualityCheckRequester extends Thread  {
 				DicomObject rsp, int pcid) {
 			DicomObject storeObject = null;
 			try {
+				ui.setLastMessage("    >>>>>>>>>>>>>>>>>>C-Store>>>>>>>>>>>>>>>>");
 				storeObject = fetchStoreObject(data);
 				rsp = cstoreObject(storeObject, cmd, data, pcid);
 			} catch (IOException e) {
@@ -185,6 +227,7 @@ public class QualityCheckRequester extends Thread  {
 				e.printStackTrace();
 				rsp = CommandUtils.mkRSP(rsp, CommandUtils.C_MOVE_RSP);
 			}
+			ui.setLastMessage("    <<<<<<<<<<<<<<C-Store<<<<<<<<<<<<<<<<<<");
 			return rsp;
 		}
 
@@ -246,6 +289,44 @@ public class QualityCheckRequester extends Thread  {
 		}
     }
 
+    private static class QCRCStoreService extends DicomService implements CStoreSCP {
+
+        private static final String[] sopClasses = { UID.BasicTextSRStorage };
+
+        public QCRCStoreService() {
+            super(sopClasses, null);
+        }
+		@Override
+		public void cstore(Association as, int pcid, DicomObject cmd,
+				PDVInputStream dataStream, String tsuid)
+				throws DicomServiceException, IOException {
+        	ui.setLastMessage(">>>>>>>>>>>>>>>>>>C-Store>>>>>>>>>>>>>>>>>");
+        	QualityCheckPerformer.ui.setLastMessage("Starting c-store of quality report");
+		    DicomObject rsp = CommandUtils.mkRSP(cmd, CommandUtils.SUCCESS);
+		    DicomObject storeObject = dataStream.readDataset();
+		    String classUid = storeObject.getString(Tag.SOPClassUID);
+		    String instanceUid = storeObject.getString(Tag.SOPInstanceUID);
+		    QualityCheckPerformer.ui.setLastMessage("Class type is "+classUid+";  Instance is "+instanceUid);
+		    persistReport(storeObject);
+		    ui.setLastMessage("******"+storeObject.get)
+		    as.writeDimseRSP(pcid, rsp);
+        	ui.setLastMessage("<<<<<<<<<<<<<<<<<<C-Store<<<<<<<<<<<<<<<<<");
+
+		}
+
+		private void persistReport(DicomObject upsObject) {
+			try {
+				String instanceUid = upsObject.getString(Tag.SOPInstanceUID);
+				DicomOutputStream  outStream = new DicomOutputStream(new File(DEFAULT_PERSIST_LOCATION+
+						"/QREPORT."+instanceUid));
+				outStream.writeDataset(upsObject, UID.ImplicitVRLittleEndian);
+				outStream.close();
+			} catch (IOException e) {
+				System.out.println(e.getMessage());
+			}
+	    }
+    }
+    
 
 	/*
 	 * CONSTRUCTOR
@@ -304,6 +385,8 @@ public class QualityCheckRequester extends Thread  {
 						DEF_TS, TransferCapability.SCP),
 				new TransferCapability(UID.RTPlanStorage, DEF_TS, TransferCapability.SCU),
 				new TransferCapability(UID.RTIonPlanStorage, DEF_TS, TransferCapability.SCU),
+				new TransferCapability(UID.UnifiedProcedureStepEventSOPClass, DEF_TS, TransferCapability.SCP),
+				new TransferCapability(UID.BasicTextSRStorage, DEF_TS, TransferCapability.SCP)
 		});  
 
 	
@@ -322,6 +405,8 @@ public class QualityCheckRequester extends Thread  {
 
 	private void setServices(NetworkApplicationEntity ae) {
 		ae.register(new QCRCMoveService());
+		ae.register(new QCRNEventService());
+		ae.register(new QCRCStoreService());
 	}
 	
 
@@ -364,6 +449,18 @@ public class QualityCheckRequester extends Thread  {
     	        ui.setActionListEnabled(false);
     			break;
     		case 3:
+    			getUPSOutputInfo(upsUid);
+    	        updateUI("Waiting for next request", "Waiting for next request");
+    	        ui.setActionButtonEnabled(true);
+    	        ui.setActionListEnabled(true);
+    			break;
+    		case 4:
+    			getQualityReport(upsUid);
+    	        updateUI("Waiting for next request", "Waiting for next request");
+    	        ui.setActionButtonEnabled(true);
+    	        ui.setActionListEnabled(true);
+    			break;
+    		case 5:
     			unsubscribeToUPSProgressUpdate(upsUid);
     	        updateUI("Waiting for next request", "Waiting for next request");
     	        ui.setActionButtonEnabled(true);
@@ -373,8 +470,7 @@ public class QualityCheckRequester extends Thread  {
 			break;
 		}
     }
-
-    public void run()  {
+	public void run()  {
         try {
 			device.startListening(executor);
 			updateUI("Starting "+local.aetitle+" server on port "+local.port+"...", "Server starting...");
@@ -484,17 +580,111 @@ public class QualityCheckRequester extends Thread  {
 
 	}
 	
-/*	
-	public void testUpdateOnUPSProgress()
-	{
-		assertTrue(true);
-	}
 	
-	public void testRetrievePassFailStatus()
-	{
-		assertTrue(true);
+	private void getUPSOutputInfo(String upsUid) {
+		//Start Subscribe association
+		ui.setLastMessage("Starting N-Get of progress / output for UPS "+upsUid);
+		String sopClassUid = UID.UnifiedProcedureStepPushSOPClass;
+		String transferSyntaxUid = UID.ImplicitVRLittleEndian;
+		DicomObject ngetObject = new BasicDicomObject();
+		
+		// These are required attributes for the N-Action subscribe as per Annex CC
+		int[] tags = new int[] {
+				Tag.UnifiedProcedureStepProgressInformationSequence,
+				Tag.UnifiedProcedureStepPerformedProcedureSequence
+		};
+	    AssociationWithLog assoc = null;
+	    DimseRSP rsp = null;
+		try {
+			assoc = new AssociationWithLog(ae.connect(remoteAE, executor));
+			// The Association class has an method signature for the subscribe and
+            // unsubscribe actions…note the “3” for the subscribe action…
+			rsp = assoc.nget(sopClassUid, upsUid, tags);
+			while (!rsp.next()){}
+			DicomObject specifiedSections = rsp.getDataset();
+			upsOutputSequence = specifiedSections.getNestedDicomObject(Tag.UnifiedProcedureStepPerformedProcedureSequence);
+			upsOutputSequence = upsOutputSequence.getNestedDicomObject(Tag.OutputInformationSequence);
+			ui.setLastMessage("Nget request completed");
+		} catch (IOException e) {
+			System.out.println(e.getMessage());
+		} catch (InterruptedException e) {
+			System.out.println(e.getMessage());
+		} catch (ConfigurationException e) {
+			System.out.println(e.getMessage());
+		}
+
 	}
-*/	
+
+
+    private void getQualityReport(String upsUid) {
+		updateUI("Formatting request", "Formatting Quality Check Report C-Move request...");
+		String sopClassUid = UID.StudyRootQueryRetrieveInformationModelMOVE;
+		DicomObject keys;
+		keys = setAttributesForReportCMove(upsOutputSequence);
+		String transferSyntaxUid = UID.ImplicitVRLittleEndian;
+	
+	    AssociationWithLog assoc = null;
+		try {
+			assoc = new AssociationWithLog(ae.connect(remoteAE, executor));
+			updateUI("Sending C-Move Request for UID "+
+					keys.getString(Tag.ReferencedSOPInstanceUID), "Sending...");
+	        DimseRSPHandler rspHandler = new DimseRSPHandler() {
+	            @Override
+	            public void onDimseRSP(Association as, DicomObject cmd, DicomObject data) {
+	                QualityCheckRequester.this.onMoveRSP(as, cmd, data);
+	            }
+	        };
+	        assoc.cmove(sopClassUid, 1, keys, transferSyntaxUid, local.aetitle, rspHandler);
+	        //rsp =  assoc.cmove(abstractSyntaxUID, sopClassUid, 1, attrs, 
+	        //		transferSyntaxUid, local.aetitle);
+			updateUI("Waiting for response on C-Move", "Waiting for response from "+remote.aetitle);
+
+	        assoc.waitForDimseRSP();
+			updateUI("Response received", "Response received");
+
+		} catch (ConfigurationException e) {
+			System.out.println(e.getMessage());
+		} catch (IOException e) {
+			System.out.println(e.getMessage());
+		} catch (InterruptedException e) {
+			System.out.println(e.getMessage());
+		}
+	}
+
+	private void onMoveRSP(Association as, DicomObject cmd,
+			DicomObject data) {
+		System.out.println("got response");
+        /*if (!CommandUtils.isPending(cmd)) {
+            moveStatus = cmd.getInt(Tag.Status);
+            if (isAbortingMove(moveStatus)) {
+                checkError(cmd);
+            } else {
+                completed += cmd.getInt(Tag.NumberOfCompletedSuboperations);
+                warning += cmd.getInt(Tag.NumberOfWarningSuboperations);
+                failed += cmd.getInt(Tag.NumberOfFailedSuboperations);
+            }
+
+            fireStudyObjectMovedEvent();
+        }*/
+	}
+
+	
+	
+	private DicomObject setAttributesForReportCMove(DicomObject oisSequence) {
+		DicomObject CMoveObject = new BasicDicomObject();
+		CMoveObject.putString(Tag.QueryRetrieveLevel, VR.CS, "STUDY");
+		CMoveObject.putString(Tag.StudyInstanceUID, VR.UI, 
+				oisSequence.getString(Tag.StudyInstanceUID));
+		CMoveObject.putString(Tag.SeriesInstanceUID, VR.UI, 
+				oisSequence.getString(Tag.SeriesInstanceUID));
+		DicomObject refSopSequence = oisSequence.getNestedDicomObject(Tag.ReferencedSOPSequence);
+		CMoveObject.putString(Tag.ReferencedSOPClassUID, VR.UI, 
+				refSopSequence.getString(Tag.ReferencedSOPClassUID));
+		CMoveObject.putString(Tag.ReferencedSOPInstanceUID, VR.UI, 
+				refSopSequence.getString(Tag.ReferencedSOPInstanceUID));
+
+		return CMoveObject;
+	}
 
 	public void unsubscribeToUPSProgressUpdate(String uidForUnsubscribe)
 	{

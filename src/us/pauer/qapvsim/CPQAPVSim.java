@@ -97,6 +97,7 @@ public class CPQAPVSim extends JFrame{
 					perIPTextField.getText(),
 					perPortTextField.getText());
 			_QCR.start();
+			startRequestorButton.setEnabled(false);
 		}
 	};
 	ActionListener performerActionListener = new ActionListener(){
@@ -109,6 +110,7 @@ public class CPQAPVSim extends JFrame{
 					reqIPTextField.getText(),
 					reqPortTextField.getText());
 			_QCP.start();
+			startPerformerButton.setEnabled(false);
 		
 		}
 	};
