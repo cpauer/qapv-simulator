@@ -45,16 +45,16 @@ public class TestSimInterface extends TestCase {
 		QAPVSim sim =  new QAPVSim();
 		assertTrue(sim!=null);
 
-		sim = new QAPVSim(new String());
+		sim = new QAPVSim();
 		assertTrue(sim!=null);
 		
-		sim = new QAPVSim(new String[]{"one", "two", "three", "", "", "", ""});
+		sim = new QAPVSim();
 		assertTrue(sim!=null);
 	}
 	
 	public void testMembers() {
 		String[] args = getDefualtRequesterSetup();
-		QAPVSim sim = new QAPVSim(args);
+		QAPVSim sim = new QAPVSim();
 		assertTrue(sim.getActorType().equalsIgnoreCase("Requester"));
 		assertTrue(sim.getSCUAE().equalsIgnoreCase("QCR"));
 		assertTrue(sim.getSCUAddress().equalsIgnoreCase("192.168.0.4"));
@@ -65,7 +65,7 @@ public class TestSimInterface extends TestCase {
 	}
 	public void testSCUCreate() {
 		String[] args = getDefualtRequesterSetup();
-		QAPVSim simR = new QAPVSim(args);
+		QAPVSim simR = new QAPVSim();
 		assertTrue(simR.getQCR()!=null);
 		QCR qcr = simR.getQCR();
 		QCUI ui = qcr.getUI();
@@ -80,7 +80,7 @@ public class TestSimInterface extends TestCase {
 	public void testSCPCreate() {
 		String[] args = getDefualtRequesterSetup();
 		args[0] = "Provider";
-		QAPVSim simP = new QAPVSim(args);
+		QAPVSim simP = new QAPVSim();
 		QCP qcp = simP.getQCP();
 		QCUI ui = qcp.getUI();
 		assertTrue(ui!=null);
