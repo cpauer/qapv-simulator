@@ -162,7 +162,7 @@ public class QualityCheckRequester extends Thread  {
 		public void neventReport(Association as, int pcid, DicomObject cmd,
 				DicomObject data) throws DicomServiceException, IOException {
 			
-        	ui.setLastMessage(">>>>>>>>>>>>>N-EVENT>>>>>>>>>>>>>>>");
+        	ui.setEntryMessage("N-Event");
 			ui.setLastMessage("Received N-Event Report...");
         	ui.setCurrentState("Checking report...");
             DicomObject cmdrsp = CommandUtils.mkRSP(cmd, CommandUtils.SUCCESS);
@@ -179,7 +179,7 @@ public class QualityCheckRequester extends Thread  {
             	}
             }
             as.writeDimseRSP(pcid, cmdrsp, data);
-        	ui.setLastMessage("<<<<<<<<<<<<<N-EVENT<<<<<<<<<<<<<<<<");
+        	ui.setExitMessage("N-Event");
         }
 
     }
@@ -193,7 +193,7 @@ public class QualityCheckRequester extends Thread  {
 
         public void cmove(Association as, int pcid, DicomObject cmd, DicomObject data)
                 throws DicomServiceException, IOException {
-        	ui.setLastMessage(">>>>>>>>>>>>>>>>>>C-Move>>>>>>>>>>>>>>>>>");
+        	ui.setEntryMessage("C-Move");
         	ui.setLastMessage("Received C-Move Request...");
         	ui.setCurrentState("Received C-Move request...");
             DicomObject cmdrsp = CommandUtils.mkRSP(cmd, CommandUtils.SUCCESS);
@@ -204,7 +204,7 @@ public class QualityCheckRequester extends Thread  {
                 throw new DicomServiceException(cmd, Status.ProcessingFailure);
             }
             as.writeDimseRSP(pcid, cmdrsp, rsp.getDataset());
-            ui.setLastMessage("<<<<<<<<<<<<<<<<<<C-Move<<<<<<<<<<<<<<<<<<");
+            ui.setExitMessage("C-Move");
         }
 
         protected DimseRSP doCMove(Association as, int pcid, DicomObject cmd,
@@ -219,7 +219,7 @@ public class QualityCheckRequester extends Thread  {
 				DicomObject rsp, int pcid) {
 			DicomObject storeObject = null;
 			try {
-				ui.setLastMessage("    >>>>>>>>>>>>>>>>>>C-Store>>>>>>>>>>>>>>>>");
+				ui.setEntryMessage("Calling C-Store");
 				storeObject = fetchStoreObject(data);
 				rsp = cstoreObject(storeObject, cmd, data, pcid);
 			} catch (IOException e) {
@@ -227,7 +227,7 @@ public class QualityCheckRequester extends Thread  {
 				e.printStackTrace();
 				rsp = CommandUtils.mkRSP(rsp, CommandUtils.C_MOVE_RSP);
 			}
-			ui.setLastMessage("    <<<<<<<<<<<<<<C-Store<<<<<<<<<<<<<<<<<<");
+			ui.setExitMessage("Calling C-Store");
 			return rsp;
 		}
 
@@ -300,7 +300,7 @@ public class QualityCheckRequester extends Thread  {
 		public void cstore(Association as, int pcid, DicomObject cmd,
 				PDVInputStream dataStream, String tsuid)
 				throws DicomServiceException, IOException {
-        	ui.setLastMessage(">>>>>>>>>>>>>>>>>>C-Store>>>>>>>>>>>>>>>>>");
+        	ui.setEntryMessage("C-Store");
         	QualityCheckPerformer.ui.setLastMessage("Starting c-store of quality report");
 		    DicomObject rsp = CommandUtils.mkRSP(cmd, CommandUtils.SUCCESS);
 		    DicomObject storeObject = dataStream.readDataset();
@@ -310,7 +310,7 @@ public class QualityCheckRequester extends Thread  {
 		    persistReport(storeObject);
 		    ui.setLastMessage("******"+storeObject.get)
 		    as.writeDimseRSP(pcid, rsp);
-        	ui.setLastMessage("<<<<<<<<<<<<<<<<<<C-Store<<<<<<<<<<<<<<<<<");
+        	ui.setExitMessage("C-Store");
 
 		}
 

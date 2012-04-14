@@ -114,5 +114,13 @@ public class CPQCUI extends JFrame {
 				controlBox.add(cmpnt);
 			}
 		}
+		
+		public void setEntryMessage(String action) {
+			setLastMessage(">>>>>>>>>>>>>>>>>>>>>"+action+">>>>>>>>>>>>>>>>>>");
+		}
+		
+		public void setExitMessage(String action) {
+			setLastMessage("<<<<<<<<<<<<<<<<<<<<<"+action+"<<<<<<<<<<<<<<<<<<");
+		}
 
 }

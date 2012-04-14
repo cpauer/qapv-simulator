@@ -15,19 +15,18 @@ import org.dcm4che2.io.DicomOutputStream;
 import org.dcm4che2.util.UIDUtils;        
 
 public class StructuredReport extends BasicDicomObject{                      
-	static String PATIENTNAME = "Simpson^Homer^Jay";          
-	static String PATIENTID = "123456789";          
-	static String DOB = "19560510";          
-	static String SEX = "M";          
-	static int SERIESNUMBER = 1;          
-	static String SRDOCUMENT = "SR Document";          
-	static String SRSOPCLASS = "1.2.840.10008.5.1.4.1.1.88.11";          
-	static int INSTANCENUMBER = 1;          
-	static String COMPLETIONSTRING = "COMPLETE"; // COMPLETE or PARTIAL          
-	static String VERIFICATIONFLAG = "UNVERIFIED"; // UNVERIFIED or VERIFIED          
-	static String TEMPLATEIDENTIFIER = "111111111";                    
-	static final String DEFAULT_PERSIST_LOCATION = "C:/QAPVSIM/SCP/";                    
-	String persistLocation = DEFAULT_PERSIST_LOCATION;
+	String patientName;          
+	String patientId;          
+	String DOB;          
+	String sex;          
+	static final int SERIESNUMBER = 1;          
+	static final String SRDOCUMENT = "SR Document";          
+	static final String SRSOPCLASS = "1.2.840.10008.5.1.4.1.1.88.11";          
+	static final int INSTANCENUMBER = 1;          
+	static final String COMPLETIONSTRING = "COMPLETE"; // COMPLETE or PARTIAL          
+	static final String VERIFICATIONFLAG = "UNVERIFIED"; // UNVERIFIED or VERIFIED          
+	static final String TEMPLATEIDENTIFIER = "111111111";                    
+	String persistLocation;
 	
 	public void persistMe(String location) {          
 		System.out.println("in persistMe");                  
@@ -41,10 +40,23 @@ public class StructuredReport extends BasicDicomObject{
 		} catch (IOException e) {                          
 			System.out.println(e.getMessage());                  
 		}          
-	}                    
+	}        
 	
-	public StructuredReport(String studyUid, String seriesUid) {                  
-		putPatient();                  
+	public StructuredReport() {
+		putGeneralEquipment();                  
+		putSOPCommon();                  
+		putSRDocumentGeneral();                  
+		putSRDocumentContent();                  
+		
+	}
+	
+	public StructuredReport(String patientName,
+			String patientId,
+			String dob,
+			String sex,
+			String studyUid, 
+			String seriesUid) {                  
+		putPatient(patientName, patientId, DOB, sex);                  
 		putGeneralStudy(studyUid);                  
 		putSRDocumentSeries(seriesUid);                  
 		putGeneralEquipment();                  
@@ -54,11 +66,11 @@ public class StructuredReport extends BasicDicomObject{
 	}                    
 	
 	
-	public void putPatient() {                  
-		putString(Tag.PatientName,VR.PN,PATIENTNAME);                  
-		putString(Tag.PatientID, VR.SS, PATIENTID);                  
-		putString(Tag.PatientBirthDate,VR.DA,DOB);                  
-		putString(Tag.PatientSex, VR.CS, SEX);          
+	public void putPatient(String patientName, String patientId, String dOB, String sex) {                  
+		putString(Tag.PatientName,VR.PN,patientName);                  
+		putString(Tag.PatientID, VR.SS, patientId);                  
+		putString(Tag.PatientBirthDate,VR.DA,dOB);                  
+		putString(Tag.PatientSex, VR.CS, sex);          
 	}                    
 	
 	
@@ -89,7 +101,6 @@ public class StructuredReport extends BasicDicomObject{
 	
 	public void putSOPCommon() {                  
 		putString(Tag.SOPClassUID,VR.UI, SRSOPCLASS);                  
-		//bd.putString(Tag.SOPInstanceUID,VR.UI, UIDUtils.createUID(SRSOPCLASS));                  
 		putString(Tag.SOPInstanceUID,VR.UI, UIDUtils.createUID());          
 	}       
 	

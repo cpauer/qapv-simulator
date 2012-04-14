@@ -808,11 +808,15 @@ public class QualityCheckPerformer extends Thread {
     	DicomObject inputInfoSeq = ups.getNestedDicomObject(Tag.InputInformationSequence);
     	String seriesUid = inputInfoSeq.getString(Tag.StudyInstanceUID);
     	String studyUid = inputInfoSeq.getString(Tag.SeriesInstanceUID);
+    	String patientName = ups.getString(Tag.PatientName);
+    	String patientId = ups.getString(Tag.PatientID);
+    	String dob = ups.getString(Tag.PatientBirthDate);
+    	String sex = ups.getString(Tag.PatientSex);
     	outputInfoSeq.putString(Tag.StudyInstanceUID, VR.UI, studyUid);
     	outputInfoSeq.putString(Tag.SeriesInstanceUID, VR.UI, seriesUid);
     	DicomObject sopSequence = new BasicDicomObject();
 		sopSequence.putString(Tag.ReferencedSOPClassUID, VR.UI, UID.BasicTextSRStorage);
-		StructuredReport bsr = new StructuredReport(studyUid, seriesUid);
+		StructuredReport bsr = new StructuredReport(patientName, patientId, dob, sex, studyUid, seriesUid);
 		bsr.persistMe(QA_REPORT_LOCATION);
 		sopSequence.putString(Tag.ReferencedSOPInstanceUID, VR.UI, bsr.getString(Tag.SOPInstanceUID));
 		DicomObject retrieveSequence = new BasicDicomObject();

@@ -24,10 +24,14 @@
 
 package us.pauer.qapvsim;
 
-public class QCP extends baseQualityCheck{
+public class QCP extends BaseQualityCheck{
 	
 	
 	/** 
+	 * Thin or mock implementation of the QCP...see QualityCheckPerformer class for full
+	 * functionality.
+	 * 
+	 * 
 	 * The UPS SCP has a default waiting for input mode.
 	 * The recognized inputs:
 	 * 	Create UPS
