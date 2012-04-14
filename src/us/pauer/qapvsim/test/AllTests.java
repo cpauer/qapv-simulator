@@ -9,7 +9,7 @@ public class AllTests {
 		TestSuite suite = new TestSuite(AllTests.class.getName());
 		//$JUnit-BEGIN$
 		suite.addTestSuite(TestSimInterface.class);
-		suite.addTestSuite(Testupsfunctions.class);
+		suite.addTestSuite(TestupsfunctionsOnQCP.class);
 		//$JUnit-END$
 		return suite;
 	}

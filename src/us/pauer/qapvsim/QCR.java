@@ -13,10 +13,15 @@ import us.pauer.qapvsim.QCP.other;
 import us.pauer.qapvsim.QCP.subscribe;
 import us.pauer.qapvsim.QCP.unsubscribe;
 
+/**
+ * Thin or mock implementation of the QCR...see QualityCheckRequester class for 
+ * full functionality.
+ * 
+ *
+ */
 
 
-
-public class QCR extends baseQualityCheck{
+public class QCR extends BaseQualityCheck{
 
 	
 	private static final int STATE_INIT = 0;

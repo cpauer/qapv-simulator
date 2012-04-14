@@ -25,7 +25,7 @@ import org.dcm4che2.net.NewThreadExecutor;
 import org.dcm4che2.net.TransferCapability;
 import org.dcm4che2.util.UIDUtils;
 
-import us.pauer.qapvsim.UPSSCP;
+import us.pauer.qapvsim.QualityCheckPerformer;
 
 
 
@@ -33,7 +33,7 @@ import us.pauer.qapvsim.UPSSCP;
 /* ***** BEGIN LICENSE BLOCK *****
 * 
 *	This set of Junits is provided to test the
-*   UPSSCP class.  	
+*   QualityCheckPerformer class.  	
 *	
 *    Copyright (C) 2012  Chris Pauer
 *
@@ -52,7 +52,7 @@ import us.pauer.qapvsim.UPSSCP;
 *
 ** ***** END LICENSE BLOCK ***** */
 
-public class Testupsfunctions extends TestCase {
+public class TestupsfunctionsOnQCP extends TestCase {
 	
 	
 
@@ -60,7 +60,7 @@ public class Testupsfunctions extends TestCase {
 	{
 		// we will need this string array with the valid UIDs for supported transfer syntaxes for the SCU/QCR AE…
 		String[] DEF_TS = { UID.ImplicitVRLittleEndian };
-		UPSSCP scp = new UPSSCP("QCP", "localhost", 40405);
+		QualityCheckPerformer scp = new QualityCheckPerformer("QCP", "localhost", 40405);
 		try {
 			scp.start();
 		} catch (IOException e1) {
@@ -102,7 +102,7 @@ public class Testupsfunctions extends TestCase {
 		NetworkConnection remoteConn = new NetworkConnection();
 		
 		// Here we say describe the remote AE….Note we use the AE Title we will establish for the
-        // UPSSCP when that is finally built…
+        // QualityCheckPerformer when that is finally built…
 		remoteAE.setInstalled(true);
 		remoteAE.setAssociationAcceptor(true);
 		remoteConn.setHostname("localhost");
@@ -140,7 +140,7 @@ public class Testupsfunctions extends TestCase {
 	{
 	    String[] DEF_TS = { UID.ImplicitVRLittleEndian ,
 	    		UID.ExplicitVRLittleEndian};
-		UPSSCP scp = new UPSSCP("QCP", "localhost", 40405);
+		QualityCheckPerformer scp = new QualityCheckPerformer("QCP", "localhost", 40405);
 		try {
 			scp.start();
 		} catch (IOException e1) {
@@ -250,7 +250,7 @@ public class Testupsfunctions extends TestCase {
 	{
 	    String[] DEF_TS = { UID.ImplicitVRLittleEndian ,
 	    		UID.ExplicitVRLittleEndian};
-		UPSSCP scp = new UPSSCP("QCP", "localhost", 40405);
+		QualityCheckPerformer scp = new QualityCheckPerformer("QCP", "localhost", 40405);
 		try {
 			scp.start();
 		} catch (IOException e1) {
@@ -363,14 +363,14 @@ public class Testupsfunctions extends TestCase {
 	{
 	    String[] DEF_TS = { UID.ImplicitVRLittleEndian ,
 	    		UID.ExplicitVRLittleEndian};
-		UPSSCP scp = new UPSSCP("QCP", "localhost", 40405);
+		QualityCheckPerformer scp = new QualityCheckPerformer("QCP", "localhost", 40405);
 		try {
 			scp.start();
 		} catch (IOException e1) {
 			e1.printStackTrace();
 			assertTrue(false);
 		}
-		String name = "TestSCUUnsubscribe";
+		String name = "TestSCUUnsub";
 		Device device = new Device(name);
 		
 		Executor executor = new NewThreadExecutor(name);
@@ -437,7 +437,7 @@ public class Testupsfunctions extends TestCase {
 		DicomObject subscribeObject = new BasicDicomObject();
 		
 		// These are required attributes for the N-Action subscribe as per Annex CC
-		subscribeObject.putString(Tag.ReceivingAE, VR.AE, "TestSCUUnsubscribe");
+		subscribeObject.putString(Tag.ReceivingAE, VR.AE, "TestSCUUnsub");
 		subscribeObject.putString(Tag.DeletionLock, VR.LO, "TRUE");
 		try {
 			// The Association class has an method signature for the subscribe and
@@ -460,7 +460,7 @@ public class Testupsfunctions extends TestCase {
 		DicomObject unsubscribeObject = new BasicDicomObject();
 		
 		// These are required attributes for the N-Action subscribe as per Annex CC
-		unsubscribeObject.putString(Tag.ReceivingAE, VR.AE, "TestSCUUnsubscribe");
+		unsubscribeObject.putString(Tag.ReceivingAE, VR.AE, "TestSCUUnsub");
 		try {
 			// The Association class has an method signature for the subscribe and
             // unsubscribe actions…note the “4” for the unsubscribe action…

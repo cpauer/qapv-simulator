@@ -24,7 +24,7 @@ import org.dcm4che2.net.NewThreadExecutor;
 import org.dcm4che2.net.TransferCapability;
 import org.dcm4che2.util.UIDUtils;
 
-import us.pauer.qapvsim.UPSSCP;
+import us.pauer.qapvsim.QualityCheckPerformer;
 
 
 
@@ -32,7 +32,7 @@ import us.pauer.qapvsim.UPSSCP;
 /* ***** BEGIN LICENSE BLOCK *****
 * 
 *	This set of Junits is provided to test the
-*   UPSSCP class.  	
+*   QualityCheckPerformer class.  	
 *	
 *    Copyright (C) 2012  Chris Pauer
 *

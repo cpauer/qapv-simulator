@@ -160,7 +160,7 @@ public class PlanArchiveSim  {
 		remoteConn = new NetworkConnection();
 		
 		// Here we say describe the remote AE….Note we use the AE Title we will establish for the
-        // UPSSCP when that is finally built…
+        // QualityCheckPerformer when that is finally built…
 		remoteAE.setInstalled(true);
 		remoteAE.setAssociationAcceptor(true);
 		remoteConn.setHostname("localhost");
