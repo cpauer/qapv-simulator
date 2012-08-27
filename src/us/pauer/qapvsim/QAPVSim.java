@@ -4,7 +4,7 @@
 *	Quality Assurance with Plan Veto profile of IHE-RO
 *	
 *	
-*    Copyright (C) 2012  Chris Pauer
+*    Copyright (C) 2012  Chris Pauer, Koua Yang
 *
 *    This program is free software: you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -23,6 +23,8 @@
 
 package us.pauer.qapvsim;
 
+import java.awt.Dimension;
+import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
@@ -34,10 +36,16 @@ import javax.swing.JLabel;
 import javax.swing.JTextField;
 
 
+@SuppressWarnings("serial")
 public class QAPVSim extends JFrame{
 
-	private static final String TYPE_REQUESTER = "REQUESTER";
-	private static final String TYPE_PROVIDER = "PROVIDER";
+	private static final String REQ_AE_DEFAULT = "QCR";
+	private static final String REQ_IP_DEFAULT = "localhost";
+	private static final String REQ_PORT_DEFAULT = "40404";
+	
+	private static final String PER_AE_DEFAULT = "QCP";
+	private static final String PER_IP_DEFAULT = "localhost";
+	private static final String PER_PORT_DEFAULT = "40405";
 
 	
 	private String _scuAe;
@@ -48,26 +56,26 @@ public class QAPVSim extends JFrame{
 	private String _scpPort;
 	private String _actorType;
 	
-	private QCR _QCR;
-	private QCP _QCP;
+	private QualityCheckRequester _QCR;
+	private QualityCheckPerformer _QCP;
 
 
 	private JButton startRequestorButton = new JButton("Start Requestor");
 	private JButton startPerformerButton = new JButton("Start Performer");
 	private Box buttonBox = new Box(BoxLayout.X_AXIS);
 	
-	private Box mainBox = new Box(BoxLayout.Y_AXIS);
 	private Box text1Box = new Box(BoxLayout.X_AXIS);
 	private Box text2Box = new Box(BoxLayout.X_AXIS);
 	
 	private Box infoBox = new Box(BoxLayout.Y_AXIS);
-	private JTextField reqAETextField = new JTextField(20);
-	private JTextField reqIPTextField = new JTextField(10);
-	private JTextField reqPortTextField = new JTextField(5);
+	private JTextField reqAETextField = new JTextField(REQ_AE_DEFAULT, 20);
+	private JTextField reqIPTextField = new JTextField(REQ_IP_DEFAULT, 10);
+	private JTextField reqPortTextField = new JTextField(REQ_PORT_DEFAULT, 10);
 	
-	private JTextField perAETextField = new JTextField(20);
-	private JTextField perIPTextField = new JTextField(10);
-	private JTextField perPortTextField = new JTextField(5);
+	private JTextField perAETextField = new JTextField(PER_AE_DEFAULT, 20);
+	private JTextField perIPTextField = new JTextField(PER_IP_DEFAULT, 10);
+	private JTextField perPortTextField = new JTextField(PER_PORT_DEFAULT, 10);
+	
 	
 	private JLabel aetitleText = new JLabel("AE Title");
 	private JLabel ipText = new JLabel("IP");
@@ -79,25 +87,27 @@ public class QAPVSim extends JFrame{
 	
 	ActionListener requestorActionListener = new ActionListener(){
 		public void actionPerformed(ActionEvent e){
-			_QCR = new QCR(reqAETextField.getText(),
+			_QCR = new QualityCheckRequester(reqAETextField.getText(),
 					reqIPTextField.getText(),
 					reqPortTextField.getText(),
 					perAETextField.getText(),
 					perIPTextField.getText(),
 					perPortTextField.getText());
 			_QCR.start();
-			
+			startRequestorButton.setEnabled(false);
 		}
 	};
 	ActionListener performerActionListener = new ActionListener(){
 		public void actionPerformed(ActionEvent e){
-			_QCP = new QCP(reqAETextField.getText(),
-					reqIPTextField.getText(),
-					reqPortTextField.getText(),
+			_QCP = new QualityCheckPerformer(
 					perAETextField.getText(),
 					perIPTextField.getText(),
-					perPortTextField.getText());
+					perPortTextField.getText(),
+					reqAETextField.getText(),
+					reqIPTextField.getText(),
+					reqPortTextField.getText());
 			_QCP.start();
+			startPerformerButton.setEnabled(false);
 		
 		}
 	};
@@ -107,6 +117,13 @@ public class QAPVSim extends JFrame{
 		this.setSize(300,100);
 		this.setTitle("QAPV Simulator");
 		this.setDefaultCloseOperation(EXIT_ON_CLOSE);
+        Toolkit tk = Toolkit.getDefaultToolkit();
+        Dimension screenSize = tk.getScreenSize();
+        final int width = screenSize.width;
+        final int height = screenSize.height;
+        // Setup the frame accordingly
+        this.setLocation(width/2,height/2);                
+		
 		
 		startRequestorButton.addActionListener(requestorActionListener);
 		startPerformerButton.addActionListener(performerActionListener);
@@ -137,9 +154,6 @@ public class QAPVSim extends JFrame{
 		
 		this.setVisible(true);
 		
-		
-		
-		// TODO Auto-generated constructor stub
 	}
 	
 	
@@ -150,14 +164,6 @@ public class QAPVSim extends JFrame{
 
 	}
 	
-	private void invokeAndRunQCP() {
-		_QCP = new QCP(getSCUAE(), getSCUAddress(), getSCUPort(), getSCPAE(), getSCPAddress(), getSCPPort());
-		_QCP.start();
-	}
-
-	private void invokeAndRunQCR() {
-		_QCR = new QCR(getSCUAE(), getSCUAddress(), getSCUPort(), getSCPAE(), getSCPAddress(), getSCPPort());
-	}
 
 	public String getActorType() {
 		return _actorType;
@@ -214,15 +220,7 @@ public class QAPVSim extends JFrame{
 		this._scpPort = _scpPort;
 	}
 
-	public QCR getQCR() {
-		// TODO Auto-generated method stub
-		return _QCR;
-	}
 
-	public QCP getQCP() {
-		// TODO Auto-generated method stub
-		return _QCP;
-	}
 
 	
 }

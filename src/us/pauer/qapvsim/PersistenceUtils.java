@@ -140,8 +140,6 @@ public class PersistenceUtils {
 	public boolean deleteObject(String SOPinstanceUID) throws IOException {
 		File persistDir = getPersistDirectory();
 		String[] fileNames = persistDir.list();
-		DicomObject[] outObjects = new DicomObject[fileNames.length];
-		int counter = 0;
 		for (String filename:fileNames) {
 			File thisFile = new File(PERSIST_DIRECTORY+"\\"+filename);
 			DicomInputStream inStream = new DicomInputStream(thisFile);

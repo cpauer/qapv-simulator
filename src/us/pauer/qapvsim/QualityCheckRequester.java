@@ -4,22 +4,14 @@ package us.pauer.qapvsim;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Date;
-import java.util.Observable;
-import java.util.Observer;
 import java.util.concurrent.Executor;
 
 import javax.swing.JComboBox;
 
-import junit.framework.TestCase;
 
 import org.dcm4che2.data.BasicDicomObject;
 import org.dcm4che2.data.DicomObject;
@@ -44,7 +36,6 @@ import org.dcm4che2.net.PDVInputStream;
 import org.dcm4che2.net.SingleDimseRSP;
 import org.dcm4che2.net.Status;
 import org.dcm4che2.net.TransferCapability;
-import org.dcm4che2.net.service.CEchoSCP;
 import org.dcm4che2.net.service.CMoveSCP;
 import org.dcm4che2.net.service.CStoreSCP;
 import org.dcm4che2.net.service.DicomService;
@@ -52,7 +43,7 @@ import org.dcm4che2.net.service.NEventReportSCU;
 import org.dcm4che2.util.UIDUtils;
 
 import us.pauer.qapvsim.QualityCheckPerformer;
-import us.pauer.qapvsim.BaseQualityCheck.connectionInfo;
+
 
 
 
@@ -80,7 +71,8 @@ import us.pauer.qapvsim.BaseQualityCheck.connectionInfo;
 
 public class QualityCheckRequester extends Thread  {
 
-	static CPQCUI ui;
+	static QCUI ui;
+	static String logName = "QCR";
 	
 	// connection information
 	class connectionInfo{
@@ -91,6 +83,7 @@ public class QualityCheckRequester extends Thread  {
 	connectionInfo local = new connectionInfo();
 	connectionInfo remote = new connectionInfo();
 
+    private static final String[] ONLY_DEF_TS = { UID.ImplicitVRLittleEndian };
 		
 
 	private ArrayList<String> QcrAction  = new ArrayList<String>(Arrays.asList(new String[]{
@@ -110,7 +103,6 @@ public class QualityCheckRequester extends Thread  {
 	static final String WINDOW_TITLE = "Requester";
 	static final String DEFAULT_PLAN_STORAGE = "C:/QAPVSIM/POOL/";
 	static final String DEFAULT_PERSIST_LOCATION = "C:/QAPVSIM/QCR/";
-	static final String DEFAULT_DCM_TRACK_LOCATION = DEFAULT_PERSIST_LOCATION+"TRAFFIC/";
 	
 	static Executor executor;
 	Device device;
@@ -119,6 +111,7 @@ public class QualityCheckRequester extends Thread  {
 	String upsUid;
 	String qReportUid;
 	DicomObject upsOutputSequence;
+	DicomObject upsPerformedSequence;
 	
 	
 
@@ -162,7 +155,6 @@ public class QualityCheckRequester extends Thread  {
 		public void neventReport(Association as, int pcid, DicomObject cmd,
 				DicomObject data) throws DicomServiceException, IOException {
 			
-        	ui.setEntryMessage("N-Event");
 			ui.setLastMessage("Received N-Event Report...");
         	ui.setCurrentState("Checking report...");
             DicomObject cmdrsp = CommandUtils.mkRSP(cmd, CommandUtils.SUCCESS);
@@ -179,7 +171,7 @@ public class QualityCheckRequester extends Thread  {
             	}
             }
             as.writeDimseRSP(pcid, cmdrsp, data);
-        	ui.setExitMessage("N-Event");
+            QualityCheckRequester.ui.setLastMessage("-----------------------");
         }
 
     }
@@ -193,7 +185,6 @@ public class QualityCheckRequester extends Thread  {
 
         public void cmove(Association as, int pcid, DicomObject cmd, DicomObject data)
                 throws DicomServiceException, IOException {
-        	ui.setEntryMessage("C-Move");
         	ui.setLastMessage("Received C-Move Request...");
         	ui.setCurrentState("Received C-Move request...");
             DicomObject cmdrsp = CommandUtils.mkRSP(cmd, CommandUtils.SUCCESS);
@@ -204,7 +195,7 @@ public class QualityCheckRequester extends Thread  {
                 throw new DicomServiceException(cmd, Status.ProcessingFailure);
             }
             as.writeDimseRSP(pcid, cmdrsp, rsp.getDataset());
-            ui.setExitMessage("C-Move");
+            QualityCheckRequester.ui.setLastMessage("-----------------------");
         }
 
         protected DimseRSP doCMove(Association as, int pcid, DicomObject cmd,
@@ -219,15 +210,12 @@ public class QualityCheckRequester extends Thread  {
 				DicomObject rsp, int pcid) {
 			DicomObject storeObject = null;
 			try {
-				ui.setEntryMessage("Calling C-Store");
 				storeObject = fetchStoreObject(data);
 				rsp = cstoreObject(storeObject, cmd, data, pcid);
 			} catch (IOException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 				rsp = CommandUtils.mkRSP(rsp, CommandUtils.C_MOVE_RSP);
 			}
-			ui.setExitMessage("Calling C-Store");
 			return rsp;
 		}
 
@@ -246,7 +234,7 @@ public class QualityCheckRequester extends Thread  {
 		    AssociationWithLog assoc = null;
 			try {
 				assoc = new AssociationWithLog(ae.connect(remoteAE, executor));
-				assoc.setLogDirectory(DEFAULT_DCM_TRACK_LOCATION);
+				assoc.setLogDirectory(logName);
 				ui.setLastMessage("Sending Plan Object");
 				ui.setCurrentState("Sending...");
 				DimseRSP rsp = assoc.cstore(sopClassUid, instanceUid, priority, moveOriginatorAET, moveOriginatorMsgId, 
@@ -300,6 +288,8 @@ public class QualityCheckRequester extends Thread  {
 		public void cstore(Association as, int pcid, DicomObject cmd,
 				PDVInputStream dataStream, String tsuid)
 				throws DicomServiceException, IOException {
+			AssociationWithLog asl = new AssociationWithLog(as);
+			asl.setLogDirectory(logName);
         	ui.setEntryMessage("C-Store");
         	QualityCheckPerformer.ui.setLastMessage("Starting c-store of quality report");
 		    DicomObject rsp = CommandUtils.mkRSP(cmd, CommandUtils.SUCCESS);
@@ -308,9 +298,10 @@ public class QualityCheckRequester extends Thread  {
 		    String instanceUid = storeObject.getString(Tag.SOPInstanceUID);
 		    QualityCheckPerformer.ui.setLastMessage("Class type is "+classUid+";  Instance is "+instanceUid);
 		    persistReport(storeObject);
-		    ui.setLastMessage("******"+storeObject.get)
-		    as.writeDimseRSP(pcid, rsp);
+		    //ui.setLastMessage("******"+storeObject.get)
+		    asl.writeDimseRSP(pcid, rsp);
         	ui.setExitMessage("C-Store");
+            QualityCheckRequester.ui.setLastMessage("-----------------------");
 
 		}
 
@@ -334,7 +325,7 @@ public class QualityCheckRequester extends Thread  {
 	public QualityCheckRequester(String localAETitle, String localIP, String localPort, 
 			String remoteAETitle, String remoteIP, String remotePort)  
 	{	
-		ui = new CPQCUI(WINDOW_TITLE, getActionList(), 200);
+		ui = new QCUI(WINDOW_TITLE, getActionList(), 200);
 		ui.setResetButtonListener(_qcrRestButtonListener);
 		ui.setActionButtonListener(_qcrActionButtonListener);
 		ui.setActionBoxListener(_qcrActionBoxListener);
@@ -350,6 +341,7 @@ public class QualityCheckRequester extends Thread  {
 		//do initial setting of UI
 		initialize();
 		updateUI("Waiting for action selection...", "Waiting for action...");
+        QualityCheckRequester.ui.setLastMessage("-----------------------");
 	}
 
 	private void initialize() {
@@ -374,22 +366,7 @@ public class QualityCheckRequester extends Thread  {
 		device.setNetworkConnection(localConn);
 
 		setServices(ae);
-		ae.setTransferCapability(new TransferCapability[] {
-				new TransferCapability(UID.VerificationSOPClass,
-						DEF_TS, TransferCapability.SCU),
-				new TransferCapability(UID.UnifiedProcedureStepPushSOPClass,
-						DEF_TS, TransferCapability.SCU),
-				new TransferCapability(UID.UnifiedProcedureStepWatchSOPClass,
-						DEF_TS, TransferCapability.SCU),
-				new TransferCapability(UID.StudyRootQueryRetrieveInformationModelMOVE,
-						DEF_TS, TransferCapability.SCP),
-				new TransferCapability(UID.RTPlanStorage, DEF_TS, TransferCapability.SCU),
-				new TransferCapability(UID.RTIonPlanStorage, DEF_TS, TransferCapability.SCU),
-				new TransferCapability(UID.UnifiedProcedureStepEventSOPClass, DEF_TS, TransferCapability.SCP),
-				new TransferCapability(UID.BasicTextSRStorage, DEF_TS, TransferCapability.SCP)
-		});  
-
-	
+		setTransferCapabilities(ae);
 	
 		remoteAE = new NetworkApplicationEntity();
 		NetworkConnection remoteConn = new NetworkConnection();
@@ -403,6 +380,19 @@ public class QualityCheckRequester extends Thread  {
 		
 	}
 
+	private void setTransferCapabilities(NetworkApplicationEntity aeP) {
+		TransferCapability[] tc = new TransferCapability[] {
+				new TransferCapability(UID.VerificationSOPClass, ONLY_DEF_TS, TransferCapability.SCU),
+				new TransferCapability(UID.UnifiedProcedureStepPushSOPClass, ONLY_DEF_TS, TransferCapability.SCU),
+				new TransferCapability(UID.UnifiedProcedureStepWatchSOPClass, ONLY_DEF_TS, TransferCapability.SCU),
+				new TransferCapability(UID.StudyRootQueryRetrieveInformationModelMOVE, ONLY_DEF_TS, TransferCapability.SCP),
+				new TransferCapability(UID.RTPlanStorage, ONLY_DEF_TS, TransferCapability.SCU),
+				new TransferCapability(UID.RTIonPlanStorage, ONLY_DEF_TS, TransferCapability.SCU),
+				new TransferCapability(UID.UnifiedProcedureStepEventSOPClass, ONLY_DEF_TS, TransferCapability.SCP),
+				new TransferCapability(UID.BasicTextSRStorage, ONLY_DEF_TS, TransferCapability.SCP)};
+		aeP.setTransferCapability(tc);
+	}
+
 	private void setServices(NetworkApplicationEntity ae) {
 		ae.register(new QCRCMoveService());
 		ae.register(new QCRNEventService());
@@ -410,7 +400,7 @@ public class QualityCheckRequester extends Thread  {
 	}
 	
 
-	private ArrayList getActionList() {
+	private ArrayList<String> getActionList() {
 		ArrayList<String> actions = new ArrayList<String>();
 		for (String qcrs:QcrAction)
 		{
@@ -434,6 +424,7 @@ public class QualityCheckRequester extends Thread  {
     			echoOnSCP();
     	        ui.setActionButtonEnabled(true);
     	        ui.setActionListEnabled(true);
+                QualityCheckRequester.ui.setLastMessage("-----------------------");
     			break;
     		case 1:
     			upsUid = createUPS();
@@ -441,30 +432,35 @@ public class QualityCheckRequester extends Thread  {
     	        updateUI("Waiting for next request", "Waiting for next request");
     	        ui.setActionButtonEnabled(true);
     	        ui.setActionListEnabled(true);
+                QualityCheckRequester.ui.setLastMessage("-----------------------");
     			break;
     		case 2:
     			subscribeToUPSProgressUpdate(upsUid);
     	        updateUI("Waiting for next request", "Waiting for next request");
     	        ui.setActionButtonEnabled(false);
     	        ui.setActionListEnabled(false);
+                QualityCheckRequester.ui.setLastMessage("-----------------------");
     			break;
     		case 3:
     			getUPSOutputInfo(upsUid);
     	        updateUI("Waiting for next request", "Waiting for next request");
     	        ui.setActionButtonEnabled(true);
     	        ui.setActionListEnabled(true);
+                QualityCheckRequester.ui.setLastMessage("-----------------------");
     			break;
     		case 4:
     			getQualityReport(upsUid);
     	        updateUI("Waiting for next request", "Waiting for next request");
     	        ui.setActionButtonEnabled(true);
     	        ui.setActionListEnabled(true);
+                QualityCheckRequester.ui.setLastMessage("-----------------------");
     			break;
     		case 5:
     			unsubscribeToUPSProgressUpdate(upsUid);
     	        updateUI("Waiting for next request", "Waiting for next request");
     	        ui.setActionButtonEnabled(true);
     	        ui.setActionListEnabled(true);
+                QualityCheckRequester.ui.setLastMessage("-----------------------");
     	        break;
 		default:
 			break;
@@ -477,6 +473,7 @@ public class QualityCheckRequester extends Thread  {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+        QualityCheckRequester.ui.setLastMessage("-----------------------");
     }
 
 
@@ -488,7 +485,7 @@ public class QualityCheckRequester extends Thread  {
 
 		try {
 			assoc = new AssociationWithLog(ae.connect(remoteAE, executor));
-			assoc.setLogDirectory(DEFAULT_DCM_TRACK_LOCATION);
+			assoc.setLogDirectory(logName);
 		} catch (ConfigurationException e) {
 			System.out.println(e.getMessage());
 		} catch (IOException e) {
@@ -523,7 +520,7 @@ public class QualityCheckRequester extends Thread  {
 	    AssociationWithLog assoc = null;
 		try {
 			assoc = new AssociationWithLog(ae.connect(remoteAE, executor));
-			assoc.setLogDirectory(DEFAULT_DCM_TRACK_LOCATION);
+			assoc.setLogDirectory(logName);
 			updateUI("Sending UPS N-CREATE", "Sending...");
 	        rsp =  assoc.ncreate(abstractSyntaxUID, sopClassUid, instanceUid, attrs,
 	                transferSyntaxUid);
@@ -540,6 +537,7 @@ public class QualityCheckRequester extends Thread  {
 		} catch (InterruptedException e) {
 			System.out.println(e.getMessage());
 		}
+        QualityCheckRequester.ui.setLastMessage("-----------------------");
 		return upsUid;
 	
 	}
@@ -563,6 +561,7 @@ public class QualityCheckRequester extends Thread  {
 	    DimseRSP rsp = null;
 		try {
 			assoc = new AssociationWithLog(ae.connect(remoteAE, executor));
+			assoc.setLogDirectory(logName);
 			// The Association class has an method signature for the subscribe and
             // unsubscribe actions…note the “3” for the subscribe action…
 			rsp = assoc.naction(abstractSyntaxUID, sopClassUid, uidForSubscription,
@@ -577,6 +576,7 @@ public class QualityCheckRequester extends Thread  {
 		} catch (ConfigurationException e) {
 			System.out.println(e.getMessage());
 		}
+        QualityCheckRequester.ui.setLastMessage("-----------------------");
 
 	}
 	
@@ -585,8 +585,6 @@ public class QualityCheckRequester extends Thread  {
 		//Start Subscribe association
 		ui.setLastMessage("Starting N-Get of progress / output for UPS "+upsUid);
 		String sopClassUid = UID.UnifiedProcedureStepPushSOPClass;
-		String transferSyntaxUid = UID.ImplicitVRLittleEndian;
-		DicomObject ngetObject = new BasicDicomObject();
 		
 		// These are required attributes for the N-Action subscribe as per Annex CC
 		int[] tags = new int[] {
@@ -597,14 +595,19 @@ public class QualityCheckRequester extends Thread  {
 	    DimseRSP rsp = null;
 		try {
 			assoc = new AssociationWithLog(ae.connect(remoteAE, executor));
-			// The Association class has an method signature for the subscribe and
-            // unsubscribe actions…note the “3” for the subscribe action…
+			assoc.setLogDirectory(logName);
 			rsp = assoc.nget(sopClassUid, upsUid, tags);
 			while (!rsp.next()){}
 			DicomObject specifiedSections = rsp.getDataset();
 			upsOutputSequence = specifiedSections.getNestedDicomObject(Tag.UnifiedProcedureStepPerformedProcedureSequence);
 			upsOutputSequence = upsOutputSequence.getNestedDicomObject(Tag.OutputInformationSequence);
+			upsPerformedSequence = specifiedSections.getNestedDicomObject(Tag.UnifiedProcedureStepProgressInformationSequence);
+			
 			ui.setLastMessage("Nget request completed");
+			ui.setLastMessage("Completion progress is:"+upsPerformedSequence.getString(Tag.UnifiedProcedureStepProgress));
+			ui.setLastMessage("Completion explanation:"+upsPerformedSequence.getString(Tag.UnifiedProcedureStepProgressDescription));
+			ui.setLastMessage("Output Seq");
+		//	ui.setLastMessage("Output Sequence:"+upsOutputSequence.)
 		} catch (IOException e) {
 			System.out.println(e.getMessage());
 		} catch (InterruptedException e) {
@@ -612,6 +615,7 @@ public class QualityCheckRequester extends Thread  {
 		} catch (ConfigurationException e) {
 			System.out.println(e.getMessage());
 		}
+        QualityCheckRequester.ui.setLastMessage("-----------------------");
 
 	}
 
@@ -626,6 +630,7 @@ public class QualityCheckRequester extends Thread  {
 	    AssociationWithLog assoc = null;
 		try {
 			assoc = new AssociationWithLog(ae.connect(remoteAE, executor));
+			assoc.setLogDirectory(logName);
 			updateUI("Sending C-Move Request for UID "+
 					keys.getString(Tag.ReferencedSOPInstanceUID), "Sending...");
 	        DimseRSPHandler rspHandler = new DimseRSPHandler() {
@@ -649,11 +654,13 @@ public class QualityCheckRequester extends Thread  {
 		} catch (InterruptedException e) {
 			System.out.println(e.getMessage());
 		}
+        QualityCheckRequester.ui.setLastMessage("-----------------------");
 	}
 
 	private void onMoveRSP(Association as, DicomObject cmd,
 			DicomObject data) {
 		System.out.println("got response");
+        QualityCheckRequester.ui.setLastMessage("-----------------------");
         /*if (!CommandUtils.isPending(cmd)) {
             moveStatus = cmd.getInt(Tag.Status);
             if (isAbortingMove(moveStatus)) {
@@ -702,6 +709,7 @@ public class QualityCheckRequester extends Thread  {
 
 		try {
 			assoc = new AssociationWithLog(ae.connect(remoteAE, executor));
+			assoc.setLogDirectory(logName);
 			// The Association class has an method signature for the subscribe and
             // unsubscribe actions…note the “4” for the unsubscribe action…
 			rsp = assoc.naction(abstractSyntaxUID, sopClassUid, uidForUnsubscribe,
@@ -714,11 +722,11 @@ public class QualityCheckRequester extends Thread  {
 		} catch (InterruptedException e) {
 			System.out.println(e.getMessage());
 		} catch (ConfigurationException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		finally {
 		}
+        QualityCheckRequester.ui.setLastMessage("-----------------------");
 
 	}
 

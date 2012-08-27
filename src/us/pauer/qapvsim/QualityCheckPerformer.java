@@ -35,7 +35,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.concurrent.Executor;
-import java.util.logging.Handler;
 
 import javax.swing.JComboBox;
 
@@ -77,7 +76,8 @@ import org.dcm4che2.util.UIDUtils;
 
 public class QualityCheckPerformer extends Thread {
 
-	static CPQCUI ui;
+	static QCUI ui;
+	static String logName = "QCP";
 	
 	// connection information
 	class connectionInfo{
@@ -172,8 +172,11 @@ public class QualityCheckPerformer extends Thread {
         // has to implement this method signature…
         public void cecho(Association as, int pcid, DicomObject cmd)
                 throws IOException {
-            as.writeDimseRSP(pcid, CommandUtils.mkRSP(cmd, CommandUtils.SUCCESS));
+        	AssociationWithLog aswl = new AssociationWithLog(as);
+        	aswl.setLogDirectory(logName);
+            aswl.writeDimseRSP(pcid, CommandUtils.mkRSP(cmd, CommandUtils.SUCCESS));
             QualityCheckPerformer.ui.setLastMessage("C-Echo has responded");
+            QualityCheckPerformer.ui.setLastMessage("-----------------------");
         }
     }
 
@@ -187,6 +190,8 @@ public class QualityCheckPerformer extends Thread {
 
         public void ncreate(Association as, int pcid, DicomObject rq,
 		        DicomObject data) throws DicomServiceException, IOException {
+        	AssociationWithLog asl = new AssociationWithLog(as);
+        	asl.setLogDirectory(logName);
         	QualityCheckPerformer.ui.setLastMessage("Starting n-create on server");
 		    DicomObject rsp = CommandUtils.mkRSP(rq, CommandUtils.SUCCESS);
 		    String inputReadiness = data.getString(0x00404041);
@@ -199,7 +204,8 @@ public class QualityCheckPerformer extends Thread {
 		        rq.putString(Tag.AffectedSOPInstanceUID, VR.UI, iuid);
 		        rsp.putString(Tag.AffectedSOPInstanceUID, VR.UI, iuid);
 		    }
-		    as.writeDimseRSP(pcid, rsp, doNCreate(as, pcid, rq, data, rsp));
+		    asl.writeDimseRSP(pcid, rsp, doNCreate(asl.getAssociation(), pcid, rq, data, rsp));
+            QualityCheckPerformer.ui.setLastMessage("-----------------------");
 		}
         
         private DicomObject doNCreate(Association as, int pcid, DicomObject rq,
@@ -216,7 +222,6 @@ public class QualityCheckPerformer extends Thread {
         	outObject.putString(Tag.SOPClassUID, VR.UI, UID.UnifiedProcedureStepPushSOPClass);
         	
         	outObject.putString(Tag.SOPInstanceUID, VR.UI, rq.getString(Tag.AffectedSOPInstanceUID));
-        	String stuff = data.getString(Tag.AffectedSOPInstanceUID);
         	outObject.putDate(Tag.InstanceCreationDate, VR.DA, new Date());
         	outObject.putDate(Tag.InstanceCreationTime, VR.TM, new Date());
         	//add appropriate items
@@ -260,6 +265,8 @@ public class QualityCheckPerformer extends Thread {
 
         public void naction(Association as, int pcid, DicomObject command,
 		        DicomObject data) throws DicomServiceException, IOException {
+        	AssociationWithLog asl = new AssociationWithLog(as);
+        	asl.setLogDirectory(logName);
         	QualityCheckPerformer.ui.setLastMessage("Starting n-action on server");
 		    DicomObject rsp = CommandUtils.mkRSP(command, CommandUtils.SUCCESS);
 		    // capture the incoming uid
@@ -285,11 +292,11 @@ public class QualityCheckPerformer extends Thread {
 		    		+iuid);
 		    	unsubscribe(iuid, receivingAE);
 		    }
-		    as.writeDimseRSP(pcid, rsp, data);
+		    asl.writeDimseRSP(pcid, rsp, data);
+            QualityCheckPerformer.ui.setLastMessage("-----------------------");
 		}
 
 		private void subscribe(String uid, String ae) {
-			ArrayList<String> subscriptions = new ArrayList();
 			try {
 			    File subfile = new File(DEFAULT_PERSIST_LOCATION+SUBSCRIBE_FILE_NAME);
 
@@ -302,7 +309,7 @@ public class QualityCheckPerformer extends Thread {
 			    }
 			    //read in subscribe persistence
 			    BufferedWriter out = new BufferedWriter(new FileWriter(subfile, true));
-			    out.write(uid+"$"+ae+"\n");
+			    out.write(uid+"$"+ae);
 			    out.newLine();
 			    out.close();
 			} catch (IOException e) {
@@ -360,6 +367,8 @@ public class QualityCheckPerformer extends Thread {
 		public void cstore(Association as, int pcid, DicomObject cmd,
 				PDVInputStream dataStream, String tsuid)
 				throws DicomServiceException, IOException {
+			AssociationWithLog asl = new AssociationWithLog(as);
+			asl.setLogDirectory(logName);
         	QualityCheckPerformer.ui.setLastMessage("Starting c-store of plan");
 		    DicomObject rsp = CommandUtils.mkRSP(cmd, CommandUtils.SUCCESS);
 		    DicomObject storeObject = dataStream.readDataset();
@@ -367,14 +376,15 @@ public class QualityCheckPerformer extends Thread {
 		    String instanceUid = storeObject.getString(Tag.SOPInstanceUID);
 		    QualityCheckPerformer.ui.setLastMessage("Class type is "+classUid+";  Instance is "+instanceUid);
 		    persistPlan(storeObject);
-		    as.writeDimseRSP(pcid, rsp);
+		    asl.writeDimseRSP(pcid, rsp);
+            QualityCheckPerformer.ui.setLastMessage("-----------------------");
 		}
 
 		private void persistPlan(DicomObject upsObject) {
 			try {
 				String instanceUid = upsObject.getString(Tag.SOPInstanceUID);
 				DicomOutputStream  outStream = new DicomOutputStream(new File(DEFAULT_PERSIST_LOCATION+
-						"/RTPLAN."+instanceUid));
+						"/RTPLAN."+instanceUid+"."+lastCreatedUid.substring(lastCreatedUid.length()-4)+".dcm"));
 				outStream.writeDataset(upsObject, UID.ImplicitVRLittleEndian);
 				outStream.close();
 			} catch (IOException e) {
@@ -393,16 +403,19 @@ public class QualityCheckPerformer extends Thread {
 
         public void cmove(Association as, int pcid, DicomObject cmd, DicomObject data)
                 throws DicomServiceException, IOException {
+        	AssociationWithLog asl = new AssociationWithLog(as);
+        	asl.setLogDirectory(logName);
         	ui.setLastMessage("Received C-Move Request...");
         	ui.setCurrentState("Received C-Move request...");
             DicomObject cmdrsp = CommandUtils.mkRSP(cmd, CommandUtils.SUCCESS);
-            DimseRSP rsp = doCMove(as, pcid, cmd, data, cmdrsp);
+            DimseRSP rsp = doCMove(asl.getAssociation(), pcid, cmd, data, cmdrsp);
             try {
                 rsp.next();
             } catch (InterruptedException e) {
                 throw new DicomServiceException(cmd, Status.ProcessingFailure);
             }
-            as.writeDimseRSP(pcid, cmdrsp, rsp.getDataset());
+            asl.writeDimseRSP(pcid, cmdrsp, rsp.getDataset());
+            QualityCheckPerformer.ui.setLastMessage("-----------------------");
         }
 
         protected DimseRSP doCMove(Association as, int pcid, DicomObject cmd,
@@ -420,7 +433,6 @@ public class QualityCheckPerformer extends Thread {
 				storeObject = fetchStoreObject(data);
 				rsp = cstoreObject(storeObject, cmd, data, pcid);
 			} catch (IOException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 				rsp = CommandUtils.mkRSP(rsp, CommandUtils.C_MOVE_RSP);
 			}
@@ -438,11 +450,10 @@ public class QualityCheckPerformer extends Thread {
 			int moveOriginatorMsgId = pcid;
 			String transferSyntaxUid = UID.ImplicitVRLittleEndian;
 			DicomObject storeRsp = null;
-		
 		    AssociationWithLog assoc = null;
 			try {
 				assoc = new AssociationWithLog(ae.connect(remoteAE, executor));
-				assoc.setLogDirectory(DEFAULT_DCM_TRACK_LOCATION);
+				assoc.setLogDirectory(logName);
 				ui.setLastMessage("Sending Report Object");
 				ui.setCurrentState("Sending...");
 				DimseRSP rsp = assoc.cstore(sopClassUid, instanceUid, priority, moveOriginatorAET, moveOriginatorMsgId, 
@@ -497,11 +508,13 @@ public class QualityCheckPerformer extends Thread {
 		@Override
 		public void nget(Association as, int pcid, DicomObject cmd,
 				DicomObject data) throws DicomServiceException, IOException {
+			AssociationWithLog asl = new AssociationWithLog(as);
         	ui.setLastMessage("Received N-Get Request...");
         	ui.setCurrentState("Received N-Get request...");
             DicomObject cmdrsp = CommandUtils.mkRSP(cmd, CommandUtils.SUCCESS);
-            DicomObject getDataset = doNGet(as, pcid, cmd, data, cmdrsp);
-            as.writeDimseRSP(pcid, cmdrsp, getDataset);
+            DicomObject getDataset = doNGet(asl.getAssociation(), pcid, cmd, data, cmdrsp);
+            asl.writeDimseRSP(pcid, cmdrsp, getDataset);
+            QualityCheckPerformer.ui.setLastMessage("-----------------------");
         }
 
         protected DicomObject doNGet(Association as, int pcid, DicomObject cmd,
@@ -513,6 +526,7 @@ public class QualityCheckPerformer extends Thread {
         	int[] requestedAttributes = cmd.getInts(Tag.AttributeIdentifierList);
         	for (int i:requestedAttributes) {
         		returnObject.add(UPS.get(i));
+        		ui.setLastMessage("req attr:"+i+" - "+UPS.get(i));
         	}
             return returnObject;
         }
@@ -545,7 +559,7 @@ public class QualityCheckPerformer extends Thread {
 	
 	public QualityCheckPerformer(String localAETitle, String localIP, String localPort, 
 			String remoteAETitle, String remoteIP, String remotePort) {
-		ui = new CPQCUI(WINDOW_TITLE, getActionList(), 600);
+		ui = new QCUI(WINDOW_TITLE, getActionList(), 600);
 		ui.setActionButtonEnabled(false);
 		ui.setActionListEnabled(false);
 		ui.setResetButtonListener(_qcpRestButtonListener);
@@ -562,6 +576,7 @@ public class QualityCheckPerformer extends Thread {
 		initialize();
 			//do initial setting of UI
 		updateUI("Waiting for request", "Waiting for request");
+        QualityCheckPerformer.ui.setLastMessage("-----------------------");
 	}
 	
 
@@ -599,7 +614,7 @@ public class QualityCheckPerformer extends Thread {
 		remoteAE.setAETitle(remote.aetitle);
 	}
 
-	private ArrayList getActionList() {
+	private ArrayList<String> getActionList() {
 		ArrayList<String> actions = new ArrayList<String>();
 		for (String qcrs:QcpAction)
 		{
@@ -618,7 +633,8 @@ public class QualityCheckPerformer extends Thread {
 				new TransferCapability(UID.RTPlanStorage, ONLY_DEF_TS, TransferCapability.SCP),
 				new TransferCapability(UID.RTIonPlanStorage, ONLY_DEF_TS, TransferCapability.SCP),
 				new TransferCapability(UID.UnifiedProcedureStepEventSOPClass, ONLY_DEF_TS, TransferCapability.SCU),
-				new TransferCapability(UID.StudyRootQueryRetrieveInformationModelMOVE, ONLY_DEF_TS, TransferCapability.SCP)};
+				new TransferCapability(UID.StudyRootQueryRetrieveInformationModelMOVE, ONLY_DEF_TS, TransferCapability.SCP),
+				new TransferCapability(UID.BasicTextSRStorage, ONLY_DEF_TS, TransferCapability.SCU)};
 		ae.setTransferCapability(tc);
 		
 	}
@@ -639,6 +655,7 @@ public class QualityCheckPerformer extends Thread {
 			e.printStackTrace();
 		}
         QualityCheckPerformer.ui.setLastMessage("Start Server listening on port " + aeConn.getPort());
+        QualityCheckPerformer.ui.setLastMessage("-----------------------");
     }
     
    
@@ -656,6 +673,7 @@ public class QualityCheckPerformer extends Thread {
     			requestWorkitem();
     			ui.setActionButtonEnabled(true);
     			ui.setActionListEnabled(true);
+                QualityCheckPerformer.ui.setLastMessage("-----------------------");
     			break;
     		case 1:
     			updateUI("Starting Quality Check...", "Updating...");
@@ -663,6 +681,7 @@ public class QualityCheckPerformer extends Thread {
     			ui.setActionButtonEnabled(false);
     			ui.setActionListEnabled(false);
     			updateUI("Waiting for request", "Finished with Quality Check...waitin for request...");
+                QualityCheckPerformer.ui.setLastMessage("-----------------------");
     			break;
 		default:
 			break;
@@ -680,7 +699,6 @@ public class QualityCheckPerformer extends Thread {
 		try {
 			keys = setAttributesForCMove();
 		} catch (IOException e1) {
-			// TODO Auto-generated catch block
 			updateUI("Exception on move Workitem", "Exception thrown:"+e1.getMessage());
 			return;
 		}
@@ -694,6 +712,7 @@ public class QualityCheckPerformer extends Thread {
 	    AssociationWithLog assoc = null;
 		try {
 			assoc = new AssociationWithLog(ae.connect(remoteAE, executor));
+			assoc.setLogDirectory(logName);
 			updateUI("Sending C-Move Request for UID "+
 					keys.getString(Tag.ReferencedSOPInstanceUID), "Sending...");
 	        DimseRSPHandler rspHandler = new DimseRSPHandler() {
@@ -718,6 +737,7 @@ public class QualityCheckPerformer extends Thread {
 			System.out.println(e.getMessage());
 		}
 
+        QualityCheckPerformer.ui.setLastMessage("-----------------------");
 		
 	}
 
@@ -734,6 +754,7 @@ public class QualityCheckPerformer extends Thread {
 	    AssociationWithLog assoc = null;
 		try {
 			assoc = new AssociationWithLog(ae.connect(remoteAE, executor));
+			assoc.setLogDirectory(logName);
 	        DimseRSPHandler rspHandler = new DimseRSPHandler() {
 	            @Override
 	            public void onDimseRSP(Association as, DicomObject cmd, DicomObject data) {
@@ -749,6 +770,7 @@ public class QualityCheckPerformer extends Thread {
 
 			updateUpsToInProgress(lastCreatedUid);
 			assoc = new AssociationWithLog(ae.connect(remoteAE, executor));
+			assoc.setLogDirectory(logName);
 			updateUI("Sending...", "Sending N-Event In Progress Update for UPS");
 	        assoc.nevent(sopClassUid, instanceUid, 1, inProgAttrs, transferSyntaxUid, rspHandler);
 			updateUI("Waiting for response on UPS In Progress Update", "Waiting for response from "+remote.aetitle);
@@ -756,10 +778,11 @@ public class QualityCheckPerformer extends Thread {
 			updateUI("Response received", "Response received");
 			assoc.release(true);
 			
-			doQualityCheck();
+			String reportInstanceUid = doQualityCheck();
 
-			updateUpsToComplete(lastCreatedUid);
+			updateUpsToComplete(lastCreatedUid, reportInstanceUid);
 			assoc = new AssociationWithLog(ae.connect(remoteAE, executor));
+			assoc.setLogDirectory(logName);
 			updateUI("Sending...","Sending N-Event Completed Update for UPS");
 	        assoc.nevent(sopClassUid, instanceUid, 1, compAttrs, transferSyntaxUid, rspHandler);
 			updateUI("Waiting for response on UPS Completed Update", "Waiting for response from "+remote.aetitle);
@@ -774,6 +797,7 @@ public class QualityCheckPerformer extends Thread {
 		} catch (InterruptedException e) {
 			System.out.println(e.getMessage());
 		}
+        QualityCheckPerformer.ui.setLastMessage("-----------------------");
 
 	}
 
@@ -793,7 +817,7 @@ public class QualityCheckPerformer extends Thread {
 
 
 
-	private void updateUpsToComplete(String lastCreatedUid) throws IOException {
+	private void updateUpsToComplete(String lastCreatedUid, String reportInstanceUid) throws IOException {
 		DicomObject ups = getPersistedUPSOnUid(lastCreatedUid);
 		ups.putString(Tag.UnifiedProcedureStepState, VR.CS, "COMPLETE");
     	DicomObject progressSeq = new BasicDicomObject();
@@ -806,19 +830,13 @@ public class QualityCheckPerformer extends Thread {
     	DicomObject outputInfoSeq = new BasicDicomObject();
     	outputInfoSeq.putString(0x0040E020, VR.CS, "DICOM");
     	DicomObject inputInfoSeq = ups.getNestedDicomObject(Tag.InputInformationSequence);
-    	String seriesUid = inputInfoSeq.getString(Tag.StudyInstanceUID);
-    	String studyUid = inputInfoSeq.getString(Tag.SeriesInstanceUID);
-    	String patientName = ups.getString(Tag.PatientName);
-    	String patientId = ups.getString(Tag.PatientID);
-    	String dob = ups.getString(Tag.PatientBirthDate);
-    	String sex = ups.getString(Tag.PatientSex);
+    	String seriesUid = inputInfoSeq.getString(Tag.SeriesInstanceUID);
+    	String studyUid = inputInfoSeq.getString(Tag.StudyInstanceUID);
     	outputInfoSeq.putString(Tag.StudyInstanceUID, VR.UI, studyUid);
     	outputInfoSeq.putString(Tag.SeriesInstanceUID, VR.UI, seriesUid);
     	DicomObject sopSequence = new BasicDicomObject();
 		sopSequence.putString(Tag.ReferencedSOPClassUID, VR.UI, UID.BasicTextSRStorage);
-		StructuredReport bsr = new StructuredReport(patientName, patientId, dob, sex, studyUid, seriesUid);
-		bsr.persistMe(QA_REPORT_LOCATION);
-		sopSequence.putString(Tag.ReferencedSOPInstanceUID, VR.UI, bsr.getString(Tag.SOPInstanceUID));
+		sopSequence.putString(Tag.ReferencedSOPInstanceUID, VR.UI, reportInstanceUid);
 		DicomObject retrieveSequence = new BasicDicomObject();
 		retrieveSequence.putString(Tag.RetrieveAETitle, VR.AE, local.aetitle);
 		outputInfoSeq.putSequence(0x0040E021);
@@ -834,13 +852,50 @@ public class QualityCheckPerformer extends Thread {
 
 
 
-	private void doQualityCheck() throws InterruptedException {
+	private String doQualityCheck() throws InterruptedException, IOException {
 		updateUI("Checking...", "Starting Quality Check...");
-		// report was already persisted while updating ups to 
+		SimQualityReport report = new SimQualityReport();
+		DicomObject plan = getPersistedPlan();
+		report = updateReport(report, plan, lastCreatedUid, remote.aetitle);
+		DicomObject reportObject = new SimQualityReport().getReportAsDicomObject();
+		persistReport(reportObject);
+		String returnUid = reportObject.getString(Tag.SOPInstanceUID);
 		updateUI("End Of Check", "Completed Quality Check...");
 		//create structured report
+        QualityCheckPerformer.ui.setLastMessage("-----------------------");
+        return returnUid;
 	}
 
+	private SimQualityReport updateReport(SimQualityReport report,
+			DicomObject plan, String lastCreatedUid2, String UPSCreatorAE) {
+		String patientName = plan.getString(Tag.PatientName);
+		report.setPatientName(patientName);
+		report.setPatientId(plan.getString(Tag.PatientID));
+		report.setDOB(plan.getString(Tag.PatientBirthDate));
+		report.setSex(plan.getString(Tag.PatientSex));
+		report.setStudyUid(plan.getString(Tag.StudyInstanceUID));
+		report.setSeriesUid(plan.getString(Tag.SeriesInstanceUID));
+		report.setPlanInstance(plan.getString(Tag.SOPInstanceUID));
+		report.setPlanType(plan.getString(Tag.SOPClassUID));
+		report.setUpsInstance(lastCreatedUid2);
+		report.setUPSCreatorAe(UPSCreatorAE);
+		
+		return report;
+	}
+
+
+
+	private void persistReport(DicomObject reportObject) {
+		try {
+			String instanceUid = reportObject.getString(Tag.SOPInstanceUID);
+			DicomOutputStream  outStream = new DicomOutputStream(new File(QA_REPORT_LOCATION+
+					"/REPORT."+instanceUid));
+			outStream.writeDataset(reportObject, UID.ImplicitVRLittleEndian);
+			outStream.close();
+		} catch (IOException e) {
+			System.out.println(e.getMessage());
+		}
+	}
 
 
 	private DicomObject setAttributesForNEventInProgressUpdate() {
@@ -933,7 +988,6 @@ public class QualityCheckPerformer extends Thread {
 
 	private DicomObject getPersistedUPSOnUid(String upsUid) throws IOException {
 		DicomObject returnUPS = null;
-		String stuff = DEFAULT_PERSIST_LOCATION+"UPS."+upsUid+".dcm";
 
 		File dir = new File(DEFAULT_PERSIST_LOCATION);
 
@@ -959,6 +1013,28 @@ public class QualityCheckPerformer extends Thread {
 		return returnUPS;
 	}
 
+	private DicomObject getPersistedPlan() throws IOException {
+		DicomObject returnObject = null;
+		File dir = new File(DEFAULT_PERSIST_LOCATION);
+	
+		String[] children = dir.list();
+		String checkStr = lastCreatedUid.substring(lastCreatedUid.length()-4);
+		if (children == null) {
+		    // Either dir does not exist or is not a directory
+		} else {
+		    for (int i=0; i<children.length; i++) {
+		        // Get filename of file or directory
+		        if (children[i].lastIndexOf(checkStr)!=-1 && children[i].lastIndexOf(".dcm")!=-1) {
+			        DicomInputStream inStream = new DicomInputStream(new File(DEFAULT_PERSIST_LOCATION+"/"+children[i]));
+			        DicomObject checkObject = inStream.readDicomObject();
+		        	returnObject = checkObject;
+				    inStream.close();
+		        	break;
+		        }
+		    }
+		}
+		return returnObject;
+	}
 
 
 	private String getSubscribedUid(String aetitle) throws IOException {

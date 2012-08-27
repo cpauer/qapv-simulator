@@ -1,6 +1,6 @@
 package us.pauer.qapvsim.test;
 
-import us.pauer.qapvsim.QAPVSim;
+import us.pauer.qapvsim.oldQAPVSim;
 import us.pauer.qapvsim.QCP;
 import us.pauer.qapvsim.QCR;
 import us.pauer.qapvsim.QCUI;
@@ -42,19 +42,19 @@ import junit.framework.TestCase;
 public class TestSimInterface extends TestCase {
 	
 	public void testInvoke() {
-		QAPVSim sim =  new QAPVSim();
+		oldQAPVSim sim =  new oldQAPVSim();
 		assertTrue(sim!=null);
 
-		sim = new QAPVSim();
+		sim = new oldQAPVSim();
 		assertTrue(sim!=null);
 		
-		sim = new QAPVSim();
+		sim = new oldQAPVSim();
 		assertTrue(sim!=null);
 	}
 	
 	public void testMembers() {
 		String[] args = getDefualtRequesterSetup();
-		QAPVSim sim = new QAPVSim();
+		oldQAPVSim sim = new oldQAPVSim();
 		assertTrue(sim.getActorType().equalsIgnoreCase("Requester"));
 		assertTrue(sim.getSCUAE().equalsIgnoreCase("QCR"));
 		assertTrue(sim.getSCUAddress().equalsIgnoreCase("192.168.0.4"));
@@ -65,7 +65,7 @@ public class TestSimInterface extends TestCase {
 	}
 	public void testSCUCreate() {
 		String[] args = getDefualtRequesterSetup();
-		QAPVSim simR = new QAPVSim();
+		oldQAPVSim simR = new oldQAPVSim();
 		assertTrue(simR.getQCR()!=null);
 		QCR qcr = simR.getQCR();
 		QCUI ui = qcr.getUI();
@@ -80,7 +80,7 @@ public class TestSimInterface extends TestCase {
 	public void testSCPCreate() {
 		String[] args = getDefualtRequesterSetup();
 		args[0] = "Provider";
-		QAPVSim simP = new QAPVSim();
+		oldQAPVSim simP = new oldQAPVSim();
 		QCP qcp = simP.getQCP();
 		QCUI ui = qcp.getUI();
 		assertTrue(ui!=null);
