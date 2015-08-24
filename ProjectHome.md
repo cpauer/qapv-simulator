@@ -1,0 +1,1 @@
+This is a simulator to act as either one of the actors found in the IHE-RO profile Quality Assurance with Plan Veto (QAPV).  Either the Quality Check Requester or Quality Check Performer can be started with settings to allow it to communicate with another service that is trying to adhere to an actor.  In this way, vendors can test the transaction soundness of their work.
