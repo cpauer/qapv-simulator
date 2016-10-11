@@ -23,7 +23,8 @@ This implementation uses Jave to keep it platform independent, and uses DCM4CHE 
 
 <b> Install </b>
 Version 1.0 - Unfortunately this is targeted at windows.  The code is currently not careful with file delimiters etc., and the install cmd files are DOS specific.  If you need to run on another platform, grab the source and you'll have to modify the hardcoded paths, etc.
-Download the QAPVBuild.zip, extract and run from a dos prompt.  From there run QAPVSIM\BIN\runqapvsim.cmd
+
+Download the QAPVBuild.zip, extract and run from a dos prompt.  From there run QAPVSIM\BIN\runqapvsim.cmd.  The usual environment for running Java is required.  Any version crica 2012 or later should be fine.
 
 <b> Execute </b>
 The version runs well enough, but doing things out of order will lead to unpredictable results.  There are many OPPORTUNITIES for reducing the fragility of the code.  In general the apps expect you to follow the QAPV transaction order:
